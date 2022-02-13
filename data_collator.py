@@ -1,4 +1,4 @@
-
+""" A data collator which enables dynamic padding for jagged lists."""
 from dataclasses import dataclass
 
 import torch
@@ -15,7 +15,6 @@ class CustomDataCollator:
     max_document_len: int = 32
     return_tensors: str = "pt"
     
-
     def __call__(self, features: list) -> dict:
         batch = {}
 
@@ -42,21 +41,36 @@ class CustomDataCollator:
 
                 batch_sentences.append(sentences)
                 batch_masks.append(masks)
-      
+            
             # TODO: decide on dtype for tensor, torch.int/torch.long?
-            batch[f"article_1": torch.tensor(batch_sentences, dtype=torch.int64)]
-            batch[f"mask_1": torch.tensor(batch_masks, dtype=torch.int64)]
-        
+            batch[f"article_{article_number}"] = torch.tensor(batch_sentences, dtype=torch.int64)
+            batch[f"mask_{article_number}"] = torch.tensor(batch_masks, dtype=torch.int64)  
         return batch
 
     def pad_sentence(self, sen_len: int, feature: dict, i: int) -> tuple():
+        """Returns padded sentences so that within the batch, each sentence has the same number of words.
+
+        Args:
+            sen_len (list): Number of words that each sentence should have.
+            feature (dict): Respective training instance of the batch.
+            i (int): Article number.
+
+        Returns:
+           (tuple): Sentences and attention masks of the respective document after sentence-level padding. 
+        """
         sentences = [sentence + [self.tokenizer.convert_tokens_to_ids("[PAD]")] * (sen_len - len(sentence))  for sentence in feature[f"article_{i}"]]
         # TODO: check for attention_mask ID
         masks = [sentence + [0] * (sen_len - len(sentence))  for sentence in feature[f"mask_{i}"]]
-
         return sentences, masks
 
     def pad_document(self, sentences: list, masks: list, doc_len: int):
+        """ Does document level padding so that within the batch, each document has the same number of sentences.
+
+        Args:
+            sentences (list): Sentences of the respective document.
+            masks (list): Attention masks of the respective document.
+            doc_len (int): Number of sentences that each document of the batch should have.
+        """
         mask_padding_array = [0 for i0 in range(len(masks[0]))]
         sentence_padding_array = [self.tokenizer.convert_tokens_to_ids("[PAD]") for i0 in range(len(sentences[0]))]
 
@@ -64,5 +78,6 @@ class CustomDataCollator:
             sentences += [sentence_padding_array for difference in range(doc_len - len(sentences))]
             masks += [mask_padding_array for difference in range(doc_len - len(masks))]
         elif len(sentences) > doc_len:
-            sentences = sentences[: doc_len]
-            masks = masks[: doc_len]
+            sentences[:] = sentences[: doc_len]
+            masks[:] = masks[: doc_len]
+
