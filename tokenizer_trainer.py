@@ -1,3 +1,4 @@
+""" A script to train tokenizer from scratch on the given settings and languages."""
 import argparse
 import logging
 import sys
@@ -22,7 +23,9 @@ logger = logging.getLogger(__name__)
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Train a tokenizer on the given languages from scratch")
+    parser = argparse.ArgumentParser(
+        description="Train a tokenizer on the given languages from scratch"
+        )
     parser.add_argument(
         "--languages",
         default=["en", "de", "fr", "it"],
@@ -99,7 +102,9 @@ def main():
     tokenizer = Tokenizer(models.WordPiece(unk_token="[UNK]"))
 
     # Set normalzier and pre_tokenizer
-    tokenizer.normalizer = normalizers.BertNormalizer(lowercase=False, strip_accents=False, clean_text=True)
+    tokenizer.normalizer = normalizers.BertNormalizer(
+        lowercase=False, strip_accents=False, clean_text=True
+        )
     tokenizer.pre_tokenizer = pre_tokenizers.BertPreTokenizer()
 
     # 
