@@ -35,8 +35,8 @@ class CustomDataCollator:
             doc_len_article = [len(instance[f"mask_{article_number}"]) for instance in features]
             doc_len = min(self.max_document_len, max(doc_len_article))
 
-            for idx in range(len(features)):
-                sentences, masks = self.pad_sentence(sen_len, features[idx], article_number)
+            for feature in features:
+                sentences, masks = self.pad_sentence(sen_len, feature, article_number)
                 self.pad_document(sentences, masks, doc_len)
 
                 batch_sentences.append(sentences)
@@ -47,20 +47,20 @@ class CustomDataCollator:
             batch[f"mask_{article_number}"] = torch.tensor(batch_masks, dtype=torch.int64)  
         return batch
 
-    def pad_sentence(self, sen_len: int, feature: dict, idx: int) -> tuple():
+    def pad_sentence(self, sen_len: int, feature: dict, article_number: int) -> tuple():
         """Returns padded sentences so that within the batch, each sentence has the same number of words.
 
         Args:
             sen_len (list): Number of words that each sentence should have.
             feature (dict): Respective training instance of the batch.
-            idx (int): Article number.
+            article_number (int): Article number.
 
         Returns:
            (tuple): Sentences and attention masks of the respective document after sentence-level padding. 
         """
-        sentences = [sentence + [self.tokenizer.convert_tokens_to_ids("[PAD]")] * (sen_len - len(sentence))  for sentence in feature[f"article_{idx}"]]
+        sentences = [sentence + [self.tokenizer.convert_tokens_to_ids("[PAD]")] * (sen_len - len(sentence))  for sentence in feature[f"article_{article_number}"]]
         # TODO: check for attention_mask ID
-        masks = [sentence + [0] * (sen_len - len(sentence))  for sentence in feature[f"mask_{idx}"]]
+        masks = [sentence + [0] * (sen_len - len(sentence))  for sentence in feature[f"mask_{article_number}"]]
         return sentences, masks
 
     def pad_document(self, sentences: list, masks: list, doc_len: int):
@@ -80,4 +80,3 @@ class CustomDataCollator:
         elif len(sentences) > doc_len:
             sentences[:] = sentences[: doc_len]
             masks[:] = masks[: doc_len]
-
