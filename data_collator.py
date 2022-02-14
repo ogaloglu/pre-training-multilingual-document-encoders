@@ -6,15 +6,15 @@ import torch
 
 @dataclass
 class CustomDataCollator:
-    """ A data collator which can be used for dynamic padding, when each instance of a batch is a 
-    list of lists. Each sentence is a list and each document (instance of a batch) contains multiple 
+    """ A data collator which can be used for dynamic padding, when each instance of a batch is a
+    list of lists. Each sentence is a list and each document (instance of a batch) contains multiple
     sentences.
     """
     tokenizer: None
     max_sentence_len: int = 128
     max_document_len: int = 32
     return_tensors: str = "pt"
-    
+
     def __call__(self, features: list) -> dict:
         batch = {}
 
@@ -22,16 +22,16 @@ class CustomDataCollator:
         for article_number in range(1, 3):
             batch_sentences = list()
             batch_masks = list()
-            
+
             sen_len_article = [len(sentence) for instance in features for sentence in instance[f"article_{article_number}"]]
             sen_len_mask = [len(sentence) for instance in features for sentence in instance[f"mask_{article_number}"]]
-            
+
             assert sen_len_article == sen_len_mask, (
                 f"There is a mismatch for article_{article_number} and mask_{article_number}."
                 )
-            
+
             sen_len = min(self.max_sentence_len, max(sen_len_article))
-            
+
             doc_len_article = [len(instance[f"mask_{article_number}"]) for instance in features]
             doc_len = min(self.max_document_len, max(doc_len_article))
 
@@ -41,10 +41,10 @@ class CustomDataCollator:
 
                 batch_sentences.append(sentences)
                 batch_masks.append(masks)
-            
+
             # TODO: decide on dtype for tensor, torch.int/torch.long?
             batch[f"article_{article_number}"] = torch.tensor(batch_sentences, dtype=torch.int64)
-            batch[f"mask_{article_number}"] = torch.tensor(batch_masks, dtype=torch.int64)  
+            batch[f"mask_{article_number}"] = torch.tensor(batch_masks, dtype=torch.int64)
         return batch
 
     def pad_sentence(self, sen_len: int, feature: dict, article_number: int) -> tuple():
@@ -56,7 +56,7 @@ class CustomDataCollator:
             article_number (int): Article number.
 
         Returns:
-           (tuple): Sentences and attention masks of the respective document after sentence-level padding. 
+           (tuple): Sentences and attention masks of the respective document after sentence-level padding.
         """
         sentences = [sentence + [self.tokenizer.convert_tokens_to_ids("[PAD]")] * (sen_len - len(sentence))  for sentence in feature[f"article_{article_number}"]]
         # TODO: check for attention_mask ID
@@ -64,7 +64,8 @@ class CustomDataCollator:
         return sentences, masks
 
     def pad_document(self, sentences: list, masks: list, doc_len: int):
-        """ Does document level padding so that within the batch, each document has the same number of sentences.
+        """ Does document level padding so that within the batch, each document has the same
+        number of sentences.
 
         Args:
             sentences (list): Sentences of the respective document.
