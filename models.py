@@ -1,7 +1,7 @@
-""" """
+""" A script that contains model classes to be used in training."""
 import torch
 from torch import nn
-from transformers import BertPreTrainedModel, BertModel, AutoModel
+from transformers import BertPreTrainedModel, BertModel
 
 from utils import cos_sim
 
@@ -16,7 +16,7 @@ class LowerEncoder(BertPreTrainedModel):
         # self.post_init()
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
-        model_output = self.bert(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)     
+        model_output = self.bert(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)    
         output = model_output['last_hidden_state'][:, 0, :]  # (batch_size, hidden_size)
         return output
 
@@ -32,22 +32,29 @@ class HiearchicalModel(nn.Module):
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer=self.encoder_layer,
                                                          num_layers=args.upper_num_layers)
 
+        if args.frozen:
+            self._freeze_lower()
+
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
         input_ids = input_ids.permute(1, 0, 2)  # (sentences, batch_size, words)
-        attention_mask = attention_mask.permute(1, 0, 2) 
+        attention_mask = attention_mask.permute(1, 0, 2)
         lower_encoded = []
-        
+
         for i_i, a_m in zip(input_ids, attention_mask):
             lower_encoded.append(self.lower_model(i_i, a_m))
-            
+
         # TODO: add document level [CLS]
-        
+
         lower_output = torch.stack(lower_encoded)  # (sentences, batch_size, hidden_size)
         lower_output = lower_output.permute(1, 0, 2)  # (batch_size, sentences, hidden_size)
         upper_output = self.transformer_encoder(lower_output)  # (batch_size, sentences, hidden_size)
         upper_output = upper_output[:, 0, :]  # (batch_size, hidden_size)
 
         return upper_output
+
+    def _freeze_lower(self):
+        for param in self.lower_model.bert.parameters():
+            param.requires_grad = False
 
 
 class ContrastiveModel(nn.Module):
