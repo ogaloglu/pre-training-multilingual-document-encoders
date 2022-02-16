@@ -26,6 +26,10 @@ class HiearchicalModel(nn.Module):
         self.lower_model = LowerEncoder.from_pretrained(args.pretrained_model_path)
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=args.upper_hidden_dimension,
                                                         nhead=args.upper_nhead,
+                                                        dim_feedforward=args.upper_dim_feedforward,
+                                                        dropout=args.upper_dropout,
+                                                        activation=args.upper_activation,
+                                                        layer_norm_eps=args.layer_norm_eps,
                                                         batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer=self.encoder_layer,
                                                          num_layers=args.upper_num_layers)
@@ -56,12 +60,16 @@ class HiearchicalModel(nn.Module):
 
 
 class ContrastiveModel(nn.Module):
-    def __init__(self, args, scale: float = 20.0, similarity_fct=cos_sim, **kwargs):
+    def __init__(self, args, **kwargs):
         super().__init__()
         self.hierarchical_model = HiearchicalModel(args)
-        self.scale = scale
-        self.similarity_fct = similarity_fct
+        self.scale = args.scale
         self.cross_entropy_loss = nn.CrossEntropyLoss()
+
+        if args.similarity_fct == "cos_sim":
+            self.similarity_fct = cos_sim
+        else:
+            raise NotImplementedError("Respective similarity function is not implemented.")
 
     def forward(self, batch):
         article_1, mask_1, article_2, mask_2 = batch
