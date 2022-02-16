@@ -41,9 +41,9 @@ def parse_args():
         help="Path to the output directory, where the files will be saved.",
     )
     parser.add_argument(
-        "--name", 
-        default="wordpiece_tokenizer", 
-        type=str, 
+        "--name",
+        default="wordpiece_tokenizer",
+        type=str,
         help="The name of the output vocab files."
     )
     parser.add_argument(
