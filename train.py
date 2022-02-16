@@ -510,7 +510,7 @@ def main():
 
             if completed_steps >= args.max_train_steps:
                 break
-
+        # TODO: change evaluation pipeline
         model.eval()
         losses = []
         for step, batch in enumerate(eval_dataloader):
@@ -522,6 +522,7 @@ def main():
 
         losses = torch.cat(losses)
         losses = losses[: len(eval_dataset)]
+        # TODO: change
         try:
             perplexity = math.exp(torch.mean(losses))
         except OverflowError:
