@@ -18,7 +18,7 @@ from tokenizers import (
 )
 
 logging.root.handlers = []
-logging.basicConfig(level="INFO", format = '%(asctime)s:%(levelname)s: %(message)s' ,stream = sys.stdout)
+logging.basicConfig(level="INFO", format='%(asctime)s:%(levelname)s: %(message)s', stream=sys.stdout)
 logger = logging.getLogger(__name__)
 
 
@@ -96,7 +96,7 @@ def main():
     # Build an iterator over the dataset
     def get_training_corpus(batch_size=1000):
         for i in range(0, len(dataset), batch_size):
-            yield dataset[i : i + batch_size]["text"]
+            yield dataset[i: i + batch_size]["text"]
 
     # Initialize an empty tokenizer
     tokenizer = Tokenizer(models.WordPiece(unk_token="[UNK]"))
@@ -107,10 +107,10 @@ def main():
         )
     tokenizer.pre_tokenizer = pre_tokenizers.BertPreTokenizer()
 
-    # 
+    #
     special_tokens = ["[UNK]", "[PAD]", "[CLS]", "[SEP]", "[MASK]", "[DCLS]"]
-    trainer = trainers.WordPieceTrainer(vocab_size=args.vocab_size, 
-                                        special_tokens=special_tokens, 
+    trainer = trainers.WordPieceTrainer(vocab_size=args.vocab_size,
+                                        special_tokens=special_tokens,
                                         show_progress=True,
                                         min_frequency=args.min_frequency,
                                         limit_alphabet=args.limit_alphabet)
@@ -137,6 +137,7 @@ def main():
 
     file_name = os.path.join(args.out, f"{args.name}.json")
     tokenizer.save(file_name)
+
 
 if __name__ == "__main__":
     main()
