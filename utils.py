@@ -1,4 +1,6 @@
-""" Taken from https://github.com/UKPLab/sentence-transformers/blob/master/sentence_transformers/util.py to calculate cosine similarity."""
+""" Taken from https://github.com/UKPLab/sentence-transformers/blob/master/sentence_transformers/util.py
+to calculate cosine similarity.
+"""
 import torch
 from torch import Tensor
 
