@@ -1,5 +1,7 @@
 """ Utility functions to be used while the training."""
 import argparse
+import os
+import json
 
 import torch
 from torch import Tensor
@@ -48,3 +50,14 @@ def tokenize(example, tokenizer, args: argparse.Namespace):
         example[f"article_{i}"], example[f"mask_{i}"] = tokenize_helper(example[f"article_{i}"], tokenizer, args)
 
     return example
+
+
+def save_args(args: argparse.Namespace):
+    """Saves command line arguments to a json file.
+
+    Args:
+        args (argparse.Namespace): Arguments to be saved.
+    """
+    path = os.path.join(args.output_dir, "args.json")
+    with open(path, 'w') as f:
+        json.dump(args.__dict__, f, indent=2)
