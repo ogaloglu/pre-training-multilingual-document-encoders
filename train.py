@@ -1,4 +1,3 @@
-#!/c/Users/onurg/AppData/Local/Programs/Python/Python37/python
 #!/usr/bin/env python3
 # coding=utf-8
 # Copyright 2021 The HuggingFace Inc. team. All rights reserved.
@@ -28,6 +27,7 @@ import math
 import os
 import random
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import datasets
@@ -35,7 +35,6 @@ import torch
 from datasets import load_dataset, load_from_disk
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-from nltk import sent_tokenize
 
 import transformers
 from accelerate import Accelerator, DistributedType
@@ -58,6 +57,7 @@ from transformers.utils.versions import require_version
 
 from models import ContrastiveModel
 from data_collator import CustomDataCollator
+from utils import tokenize, save_args
 
 logger = logging.getLogger(__name__)
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt")
@@ -65,7 +65,7 @@ MODEL_CONFIG_CLASSES = list(MODEL_MAPPING.keys())
 MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 
 
-def parse_args():
+def parse_arguments():
     parser = argparse.ArgumentParser(description="Pretrain multilingual document encoder")
     parser.add_argument(
         "--dataset_name",
@@ -152,7 +152,8 @@ def parse_args():
     )
     parser.add_argument(
         "--lr_scheduler_type",
-        type=SchedulerType,
+        # Modified for saving arguments
+        type=str,
         default="linear",
         help="The scheduler type to use.",
         choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"],
@@ -278,29 +279,8 @@ def parse_args():
     return args
 
 
-def tokenize(example, tokenizer, args):
-
-    def tokenize_helper(article, tokenizer, args):
-        # TODO: comment
-        sentences = [tokenizer.encode(sentence, add_special_tokens=False) for sentence in sent_tokenize(article)]
-        sentences = [sentence[:args.max_seq_length - 2] for sentence in sentences]
-        sentences = [[tokenizer.convert_tokens_to_ids("[CLS]")] + sentence + [tokenizer.convert_tokens_to_ids("[SEP]")] for sentence in sentences]
-
-        sentence_lengths = [len(sentence) for sentence in sentences]
-        # TODO: check for attention_mask ID
-        mask = [[1]*sen_len for sen_len in sentence_lengths]
-
-        return sentences, mask
-
-    # TODO: make "end" dynamic
-    for i in range(1, 3):
-        example[f"article_{i}"], example[f"mask_{i}"] = tokenize_helper(example[f"article_{i}"], tokenizer, args)
-
-    return example
-
-
 def main():
-    args = parse_args()
+    args = parse_arguments()
 
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
     accelerator = Accelerator()
@@ -335,7 +315,10 @@ def main():
                 repo_name = args.hub_model_id
             repo = Repository(args.output_dir, clone_from=repo_name)
         elif args.output_dir is not None:
+            # Modified: output_dir is concatanated with datetime and command line arguments are also saved
+            args.output_dir = os.path.join(args.output_dir, datetime.now().strftime("%Y_%m_%d-%H_%M_%S"))
             os.makedirs(args.output_dir, exist_ok=True)
+            save_args(args)
     accelerator.wait_for_everyone()
 
     # Get the datasets: you can either provide your own CSV/JSON/TXT training and evaluation files (see below)
@@ -526,8 +509,8 @@ def main():
         if args.push_to_hub and epoch < args.num_train_epochs - 1:
             accelerator.wait_for_everyone()
             unwrapped_model = accelerator.unwrap_model(model)
-            # TODO: change
-            unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
+            accelerator.save(obj=unwrapped_model.hierarchical_model.state_dict(),
+                    f=args.output_dir + "/model.pth")
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(args.output_dir)
                 repo.push_to_hub(
@@ -537,8 +520,8 @@ def main():
     if args.output_dir is not None:
         accelerator.wait_for_everyone()
         unwrapped_model = accelerator.unwrap_model(model)
-        # TODO: change
-        unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
+        accelerator.save(obj=unwrapped_model.hierarchical_model.state_dict(),
+                         f=args.output_dir + "/model.pth")
         if accelerator.is_main_process:
             tokenizer.save_pretrained(args.output_dir)
             if args.push_to_hub:
