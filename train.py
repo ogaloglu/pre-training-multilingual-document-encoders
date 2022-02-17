@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/c/Users/onurg/AppData/Local/Programs/Python/Python37/python
+#!/usr/bin/env python3
 # coding=utf-8
 # Copyright 2021 The HuggingFace Inc. team. All rights reserved.
 #
@@ -160,7 +161,7 @@ def parse_args():
         "--num_warmup_steps", type=int, default=0, help="Number of steps for the warmup in the lr scheduler."
     )
     parser.add_argument("--output_dir", type=str, default=None, help="Where to store the final model.")
-    parser.add_argument("--seed", type=int, default=42, help="A seed for reproducible training.")
+    parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
     parser.add_argument(
         "--model_type",
         type=str,
@@ -201,7 +202,6 @@ def parse_args():
         "--similarity_fct",
         type=str,
         default="cos_sim",
-        required=True,
         # TODO: add choices for similarity function
         help="Similarity function between sentence embeddings. By default, cos_sim. Can also be set to dot product (and then set scale to 1).",
     )
@@ -236,21 +236,18 @@ def parse_args():
         "--upper_dim_feedforward",
         type=int,
         default=2048,
-        required=True,
         help="The dimension of the feedforward network model of the upper level encoder.",
     )
     parser.add_argument(
         "--upper_dropout",
         type=float,
         default=0.1,
-        required=True,
         help="The dropout value of upper level encoder.",
     )
     parser.add_argument(
         "--upper_activation",
         type=str,
         default="relu",
-        required=True,
         choices=["relu", "gelu"],
         help="The the activation function of the intermediate layer of upper level encoder.",
     )
@@ -258,7 +255,6 @@ def parse_args():
         "--upper_layer_norm_eps",
         type=float,
         default=1e-5,
-        required=True,
         help="The eps value in layer normalization components of upper level encoder.",
     )
     parser.add_argument(
@@ -269,7 +265,7 @@ def parse_args():
         help="The number of sub-encoder-layers in the encoder of the upper level encoder.",
     )
     parser.add_argument(
-        "--frozen", type=bool, default=True, required=True, help="Either the lower level encoder is frozen or not."
+        "--frozen", type=bool, default=True, help="Either the lower level encoder is frozen or not."
     )
     args = parser.parse_args()
     # Sanity checks
@@ -287,7 +283,7 @@ def tokenize(example, tokenizer, args):
     def tokenize_helper(article, tokenizer, args):
         # TODO: comment
         sentences = [tokenizer.encode(sentence, add_special_tokens=False) for sentence in sent_tokenize(article)]
-        sentences = [sentence[:args.max_sentence_len - 2] for sentence in sentences]
+        sentences = [sentence[:args.max_seq_length - 2] for sentence in sentences]
         sentences = [[tokenizer.convert_tokens_to_ids("[CLS]")] + sentence + [tokenizer.convert_tokens_to_ids("[SEP]")] for sentence in sentences]
 
         sentence_lengths = [len(sentence) for sentence in sentences]
@@ -402,8 +398,7 @@ def main():
         )
 
     # Modified: Model is set to be ContrastiveModel
-    model = ContrastiveModel(args)
-    model.resize_token_embeddings(len(tokenizer))
+    model = ContrastiveModel(args, tokenizer)
 
     # Preprocessing the datasets.
     # First we tokenize all the texts.
@@ -428,7 +423,7 @@ def main():
     # Data collator
     # Modified: CustomDataCollator for documents
     data_collator = CustomDataCollator(tokenizer=tokenizer,
-                                       max_sentence_len=args.max_sequence_length,
+                                       max_sentence_len=args.max_seq_length,
                                        max_document_len=args.max_document_length)
 
     # DataLoaders creation:
@@ -496,9 +491,7 @@ def main():
         model.train()
         for step, batch in enumerate(train_dataloader):
             # Modified for ContrastiveModel
-
-            outputs = model(**batch)
-            loss = outputs.loss
+            loss = model(**batch)
             loss = loss / args.gradient_accumulation_steps
             accelerator.backward(loss)
             if step % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
