@@ -20,16 +20,17 @@ class LowerEncoder(BertPreTrainedModel):
 
 
 class HiearchicalModel(nn.Module):
-    def __init__(self, args, **kwargs):
+    def __init__(self, args, tokenizer, **kwargs):
         super().__init__()
         # TODO: from pretrained or config
-        self.lower_model = LowerEncoder.from_pretrained(args.pretrained_model_path)
+        self.lower_model = LowerEncoder.from_pretrained(args.model_name_or_path)
+        self.lower_model.resize_token_embeddings(len(tokenizer))
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=args.upper_hidden_dimension,
                                                         nhead=args.upper_nhead,
                                                         dim_feedforward=args.upper_dim_feedforward,
                                                         dropout=args.upper_dropout,
                                                         activation=args.upper_activation,
-                                                        layer_norm_eps=args.layer_norm_eps,
+                                                        layer_norm_eps=args.upper_layer_norm_eps,
                                                         batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer=self.encoder_layer,
                                                          num_layers=args.upper_num_layers)
@@ -60,9 +61,9 @@ class HiearchicalModel(nn.Module):
 
 
 class ContrastiveModel(nn.Module):
-    def __init__(self, args, **kwargs):
+    def __init__(self, args, tokenizer, **kwargs):
         super().__init__()
-        self.hierarchical_model = HiearchicalModel(args)
+        self.hierarchical_model = HiearchicalModel(args, tokenizer)
         self.scale = args.scale
         self.cross_entropy_loss = nn.CrossEntropyLoss()
 
@@ -71,9 +72,7 @@ class ContrastiveModel(nn.Module):
         else:
             raise NotImplementedError("Respective similarity function is not implemented.")
 
-    def forward(self, batch):
-        article_1, mask_1, article_2, mask_2 = batch
-
+    def forward(self, article_1, mask_1, article_2, mask_2):
         output_1 = self.hierarchical_model(input_ids=article_1,
                                            attention_mask=mask_1)  # (batch_size, hidden_size)
         output_2 = self.hierarchical_model(input_ids=article_2,
