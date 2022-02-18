@@ -316,6 +316,7 @@ def main():
             repo = Repository(args.output_dir, clone_from=repo_name)
         elif args.output_dir is not None:
             # Modified: output_dir is concatanated with datetime and command line arguments are also saved
+            # TODO: consider also adding model name to the path
             args.output_dir = os.path.join(args.output_dir, datetime.now().strftime("%Y_%m_%d-%H_%M_%S"))
             os.makedirs(args.output_dir, exist_ok=True)
             save_args(args)
