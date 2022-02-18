@@ -366,7 +366,7 @@ def main():
         config = CONFIG_MAPPING[args.model_type]()
         logger.warning("You are instantiating a new config instance from scratch.")
 
-    # TODO: change for 
+    # Modified for custom tokenizer file
     if args.tokenizer_name:
         tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name, use_fast=not args.use_slow_tokenizer)
     elif args.model_name_or_path:
@@ -510,7 +510,7 @@ def main():
             accelerator.wait_for_everyone()
             unwrapped_model = accelerator.unwrap_model(model)
             accelerator.save(obj=unwrapped_model.hierarchical_model.state_dict(),
-                    f=args.output_dir + "/model.pth")
+                             f=args.output_dir + "/model.pth")
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(args.output_dir)
                 repo.push_to_hub(
