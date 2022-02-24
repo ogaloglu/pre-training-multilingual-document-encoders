@@ -14,6 +14,7 @@ class CustomDataCollator:
     max_sentence_len: int = 128
     max_document_len: int = 32
     return_tensors: str = "pt"
+    consider_dcls: bool = True
 
     def __call__(self, features: list) -> dict:
         batch = {}
@@ -72,6 +73,10 @@ class CustomDataCollator:
             masks (list): Attention masks of the respective document.
             doc_len (int): Number of sentences that each document of the batch should have.
         """
+        # Pad documents while considering [DCLS] (document-level CLS) that will be preprended later
+        if self.consider_dcls:
+            doc_len -= 1
+
         mask_padding_array = [0 for i0 in range(len(masks[0]))]
         sentence_padding_array = [self.tokenizer.convert_tokens_to_ids("[PAD]") for i0 in range(len(sentences[0]))]
 
