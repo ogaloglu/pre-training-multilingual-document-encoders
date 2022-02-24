@@ -1,0 +1,35 @@
+Articles,Articles containing video clips
+description,Articles with short description
+articles,All articles lacking sources
+Living,Living people
+Wikidata,Commons link is on Wikidata
+Webarchive,Webarchive template wayback links
+CS1,CS1 Polish-language sources (pl)
+AC with 0 elements,-
+missing,Year of birth missing (living people)
+invalid,Infobox musical artist with missing or invalid Background field
+Pages,Pages using national squad without sport or team link
+pages,All pages needing factual verification
+Template,Webarchive template wayback links
+errors,Harv and Sfn no-target errors
+cleanup,All pages needing cleanup
+unknown,Year of birth unknown
+Use dmy dates from,Use dmy dates from October 2020
+All ,All accuracy disputes
+Singlechart called without song,?
+Source attribution,-
+birth,1985 births
+Biography with signature,-
+EngvarB,EngvarB from August 2014
+century,?
+Singlechart,Singlechart making named ref
+usages,Certification Table Entry usages for Australia
+deaths,2016 deaths
+Use mdy dates,Use mdy dates from January 2019
+-language,?
+Commons,Commons link is locally defined
+links,Works with IMSLP links
+lacking,Album infoboxes lacking a cover
+needing confirmation,"Related ethnic groups" needing confirmation
+Drugboxes which contain changes to watched fields,-
+certification,Cite certification used for United Kingdom without ID
