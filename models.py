@@ -24,7 +24,8 @@ class HiearchicalModel(nn.Module):
         super().__init__()
         # TODO: from pretrained or config
         self.lower_model = LowerEncoder.from_pretrained(args.model_name_or_path)
-        self.lower_model.resize_token_embeddings(len(tokenizer))
+        self.tokenizer = tokenizer
+        self.lower_model.resize_token_embeddings(len(self.tokenizer))
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=args.upper_hidden_dimension,
                                                         nhead=args.upper_nhead,
                                                         dim_feedforward=args.upper_dim_feedforward,
@@ -46,10 +47,20 @@ class HiearchicalModel(nn.Module):
         for i_i, a_m in zip(input_ids, attention_mask):
             lower_encoded.append(self.lower_model(i_i, a_m))
 
-        # TODO: add document level [CLS]
-
         lower_output = torch.stack(lower_encoded)  # (sentences, batch_size, hidden_size)
         lower_output = lower_output.permute(1, 0, 2)  # (batch_size, sentences, hidden_size)
+
+        # Modified: Document level [CLS] tokens are prepended to the documents
+        dcls_tokens = self.tokenizer(["[DCLS]"] * lower_output.shape[0],
+                                     add_special_tokens=False,
+                                     return_tensors="pt",
+                                     return_attention_mask=False,
+                                     return_token_type_ids=False)
+        # TODO: change
+        dcls_tokens.to(lower_output.device)
+        dcls_out = self.lower_model.bert.embeddings(dcls_tokens["input_ids"])
+        lower_output = torch.cat([dcls_out, lower_output], dim=1)
+
         upper_output = self.transformer_encoder(lower_output)  # (batch_size, sentences, hidden_size)
         upper_output = upper_output[:, 0, :]  # (batch_size, hidden_size)
 
