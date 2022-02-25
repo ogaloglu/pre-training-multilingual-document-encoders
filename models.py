@@ -26,6 +26,7 @@ class HiearchicalModel(nn.Module):
         self.lower_model = LowerEncoder.from_pretrained(args.model_name_or_path)
         self.tokenizer = tokenizer
         self.lower_model.resize_token_embeddings(len(self.tokenizer))
+        # TODO: Add positional embeddings
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=args.upper_hidden_dimension,
                                                         nhead=args.upper_nhead,
                                                         dim_feedforward=args.upper_dim_feedforward,
@@ -56,7 +57,7 @@ class HiearchicalModel(nn.Module):
                                      return_tensors="pt",
                                      return_attention_mask=False,
                                      return_token_type_ids=False)
-        # TODO: change
+        # TODO: change device
         dcls_tokens.to(lower_output.device)
         dcls_out = self.lower_model.bert.embeddings(dcls_tokens["input_ids"])
         lower_output = torch.cat([dcls_out, lower_output], dim=1)

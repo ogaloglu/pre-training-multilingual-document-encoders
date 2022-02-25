@@ -37,7 +37,8 @@ def tokenize(example, tokenizer, args: argparse.Namespace):
     def tokenize_helper(article, tokenizer, args: argparse.Namespace):
         sentences = [tokenizer.encode(sentence, add_special_tokens=False) for sentence in sent_tokenize(article)]
         sentences = [sentence[:args.max_seq_length - 2] for sentence in sentences]
-        sentences = [[tokenizer.convert_tokens_to_ids("[CLS]")] + sentence + [tokenizer.convert_tokens_to_ids("[SEP]")] for sentence in sentences]
+        sentences = [[tokenizer.convert_tokens_to_ids("[CLS]")] + sentence +
+                     [tokenizer.convert_tokens_to_ids("[SEP]")] for sentence in sentences]
 
         sentence_lengths = [len(sentence) for sentence in sentences]
         # TODO: check for attention_mask ID

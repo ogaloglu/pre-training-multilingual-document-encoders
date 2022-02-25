@@ -24,7 +24,8 @@ class CustomDataCollator:
             batch_sentences = list()
             batch_masks = list()
 
-            sen_len_article = [len(sentence) for instance in features for sentence in instance[f"article_{article_number}"]]
+            sen_len_article = [len(sentence) for instance in features
+                               for sentence in instance[f"article_{article_number}"]]
             sen_len_mask = [len(sentence) for instance in features for sentence in instance[f"mask_{article_number}"]]
 
             assert sen_len_article == sen_len_mask, (
@@ -59,7 +60,8 @@ class CustomDataCollator:
         Returns:
            (tuple): Sentences and attention masks of the respective document after sentence-level padding.
         """
-        sentences = [sentence + [self.tokenizer.convert_tokens_to_ids("[PAD]")] * (sen_len - len(sentence)) for sentence in feature[f"article_{article_number}"]]
+        sentences = [sentence + [self.tokenizer.convert_tokens_to_ids("[PAD]")] * (sen_len - len(sentence))
+                     for sentence in feature[f"article_{article_number}"]]
         # TODO: check for attention_mask ID
         masks = [sentence + [0] * (sen_len - len(sentence)) for sentence in feature[f"mask_{article_number}"]]
         return sentences, masks
