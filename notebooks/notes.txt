@@ -26,10 +26,12 @@ Singlechart,Singlechart making named ref
 usages,Certification Table Entry usages for Australia
 deaths,2016 deaths
 Use mdy dates,Use mdy dates from January 2019
--language,?
+language,?
 Commons,Commons link is locally defined
 links,Works with IMSLP links
 lacking,Album infoboxes lacking a cover
 needing confirmation,"Related ethnic groups" needing confirmation
 Drugboxes which contain changes to watched fields,-
 certification,Cite certification used for United Kingdom without ID
+ambiguous,Vague or ambiguous time from October 2017
+Use ,Use Australian English from July 2018
