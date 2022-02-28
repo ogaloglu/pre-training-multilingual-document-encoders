@@ -219,13 +219,13 @@ def parse_arguments():
         required=True,
         help="The maximum number of sentences each document can have. Documents are either truncated or padded if their length is different.",
     )
-    parser.add_argument(
-        "--upper_hidden_dimension",
-        type=int,
-        default=None,
-        required=True,
-        help="The number of expected features in the input of the upper level encoder.",
-    )
+    # parser.add_argument(
+    #     "--upper_hidden_dimension",
+    #     type=int,
+    #     default=None,
+    #     required=True,
+    #     help="The number of expected features in the input of the upper level encoder.",
+    # )
     parser.add_argument(
         "--upper_nhead",
         type=int,
@@ -359,6 +359,7 @@ def main():
     #
     # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
+    # TODO: move lower init here
     if args.config_name:
         config = AutoConfig.from_pretrained(args.config_name)
     elif args.model_name_or_path:
@@ -382,6 +383,8 @@ def main():
         )
 
     # Modified: Model is set to be ContrastiveModel
+    # Modified: Add token as document level [CLS]
+    tokenizer.add_tokens(["[DCLS]"])
     model = ContrastiveModel(args, tokenizer)
 
     # Preprocessing the datasets.
