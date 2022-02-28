@@ -44,7 +44,6 @@ class CustomDataCollator:
                 batch_sentences.append(sentences)
                 batch_masks.append(masks)
 
-            # TODO: decide on dtype for tensor, torch.int/torch.long?
             batch[f"article_{article_number}"] = torch.tensor(batch_sentences, dtype=torch.int64)
             batch[f"mask_{article_number}"] = torch.tensor(batch_masks, dtype=torch.int64)
         return batch
