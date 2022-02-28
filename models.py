@@ -1,7 +1,7 @@
 """ A script that contains model classes to be used in training."""
 import torch
 from torch import nn
-from transformers import BertPreTrainedModel, BertModel
+from transformers import BertPreTrainedModel, BertModel, AutoConfig
 
 from utils import cos_sim
 
@@ -23,11 +23,13 @@ class HiearchicalModel(nn.Module):
     def __init__(self, args, tokenizer, **kwargs):
         super().__init__()
         # TODO: from pretrained or config
+        self.lower_config = AutoConfig.from_pretrained(args.model_name_or_path)
         self.lower_model = LowerEncoder.from_pretrained(args.model_name_or_path)
+
         self.tokenizer = tokenizer
         self.lower_model.resize_token_embeddings(len(self.tokenizer))
         # TODO: Add positional embeddings
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=args.upper_hidden_dimension,
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.lower_config.hidden_dimension,
                                                         nhead=args.upper_nhead,
                                                         dim_feedforward=args.upper_dim_feedforward,
                                                         dropout=args.upper_dropout,
@@ -57,7 +59,7 @@ class HiearchicalModel(nn.Module):
                                      return_tensors="pt",
                                      return_attention_mask=False,
                                      return_token_type_ids=False)
-        # TODO: change device
+        # TODO: Maybe create random tensors instead?
         dcls_tokens.to(lower_output.device)
         dcls_out = self.lower_model.bert.embeddings(dcls_tokens["input_ids"])
         lower_output = torch.cat([dcls_out, lower_output], dim=1)
