@@ -47,7 +47,7 @@ def tokenize(example, tokenizer, args: argparse.Namespace):
         return sentences, mask
 
     # TODO: make article number dynamic
-    for i in range(1, 3):
+    for i in range(1, 5):
         example[f"article_{i}"], example[f"mask_{i}"] = tokenize_helper(example[f"article_{i}"], tokenizer, args)
 
     return example

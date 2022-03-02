@@ -20,7 +20,7 @@ class CustomDataCollator:
         batch = {}
 
         # TODO: make article number dynamic
-        for article_number in range(1, 3):
+        for article_number in range(1, 5):
             batch_sentences = list()
             batch_masks = list()
 
