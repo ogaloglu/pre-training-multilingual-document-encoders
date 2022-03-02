@@ -86,12 +86,26 @@ class ContrastiveModel(nn.Module):
         else:
             raise NotImplementedError("Respective similarity function is not implemented.")
 
-    def forward(self, article_1, mask_1, article_2, mask_2):
+    def forward(self, article_1, mask_1, article_2, mask_2, article_3, mask_3, article_4, mask_4):
+        # output_1 = self.hierarchical_model(input_ids=article_1,
+        #                                    attention_mask=mask_1)  # (batch_size, hidden_size)
+        # output_2 = self.hierarchical_model(input_ids=article_2,
+        #                                    attention_mask=mask_2)  # (batch_size, hidden_size)
+
+        # scores = self.similarity_fct(output_1, output_2) * self.scale
+        # labels = torch.tensor(range(len(scores)), dtype=torch.long, device=scores.device)
+
         output_1 = self.hierarchical_model(input_ids=article_1,
                                            attention_mask=mask_1)  # (batch_size, hidden_size)
         output_2 = self.hierarchical_model(input_ids=article_2,
                                            attention_mask=mask_2)  # (batch_size, hidden_size)
+        output_3 = self.hierarchical_model(input_ids=article_3,
+                                           attention_mask=mask_3)  # (batch_size, hidden_size)
+        output_4 = self.hierarchical_model(input_ids=article_4,
+                                           attention_mask=mask_4)  # (batch_size, hidden_size)
 
-        scores = self.similarity_fct(output_1, output_2) * self.scale
-        labels = torch.tensor(range(len(scores)), dtype=torch.long, device=scores.device)
-        return self.cross_entropy_loss(scores, labels)
+        scores_1 = self.similarity_fct(output_1, output_2, output_3) * self.scale
+        scores_2 = self.similarity_fct(output_2, output_1, output_4) * self.scale
+
+        labels = torch.tensor(range(len(scores_1)), dtype=torch.long, device=scores_1.device)
+        return self.cross_entropy_loss(scores_1, labels) + self.cross_entropy_loss(scores_2, labels)
