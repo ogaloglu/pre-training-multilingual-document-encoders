@@ -155,3 +155,6 @@ notebooks/trainer_trial.ipynb
 
 # VScode related files
 .vscode/
+
+# pickle files
+*.pkl
