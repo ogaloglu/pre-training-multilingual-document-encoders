@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES = "3,4,5,6" accelerate launch python train.py \
+CUDA_VISIBLE_DEVICES = "0,1,2,3" accelerate launch python train.py \
     --train_file /work/ogalolu/datasets/tiny_dataset \
     #--validation_split_percentage \
     --model_name_or_path xlm-roberta-base \
