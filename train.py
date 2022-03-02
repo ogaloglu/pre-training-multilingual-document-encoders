@@ -268,6 +268,12 @@ def parse_arguments():
     parser.add_argument(
         "--frozen", type=bool, default=True, help="Either the lower level encoder is frozen or not."
     )
+    parser.add_argument(
+        "--upper_positional",
+        type=bool,
+        default=True,
+        help="Either positional embeddings are used for the upper encoder or not."
+    )
     args = parser.parse_args()
     # Sanity checks
     if args.dataset_name is None and args.train_file is None and args.validation_file is None:
