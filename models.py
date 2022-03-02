@@ -1,20 +1,20 @@
 """ A script that contains model classes to be used in training."""
 import torch
 from torch import nn
-from transformers import BertPreTrainedModel, BertModel, AutoConfig
+from transformers import PreTrainedModel, AutoConfig, AutoModel
 
 from utils import cos_sim
 
 
-class LowerEncoder(BertPreTrainedModel):
+class LowerEncoder(PreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
-        self.bert = BertModel(config)
+        self.base_model = AutoModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.post_init()
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
-        model_output = self.bert(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+        model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
         output = model_output['last_hidden_state'][:, 0, :]  # (batch_size, hidden_size)
         return output
 
@@ -28,7 +28,7 @@ class HiearchicalModel(nn.Module):
 
         self.tokenizer = tokenizer
         self.lower_model.resize_token_embeddings(len(self.tokenizer))
-        # TODO: Add positional embeddings
+
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.lower_config.hidden_dimension,
                                                         nhead=args.upper_nhead,
                                                         dim_feedforward=args.upper_dim_feedforward,
@@ -41,6 +41,9 @@ class HiearchicalModel(nn.Module):
 
         if args.frozen:
             self._freeze_lower()
+
+        # TODO: check
+        self.upper_positional = getattr(args, "upper_positional", True)
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
         input_ids = input_ids.permute(1, 0, 2)  # (sentences, batch_size, words)
@@ -61,8 +64,11 @@ class HiearchicalModel(nn.Module):
                                      return_token_type_ids=False)
         # TODO: Maybe create random tensors instead?
         dcls_tokens.to(lower_output.device)
-        dcls_out = self.lower_model.bert.embeddings(dcls_tokens["input_ids"])
+        dcls_out = self.lower_model.base_model.embeddings.word_embeddings(dcls_tokens["input_ids"])
         lower_output = torch.cat([dcls_out, lower_output], dim=1)
+
+        if self.upper_positional:
+            lower_output = self.lower_model.base_model.embeddings(inputs_embeds=lower_output)
 
         upper_output = self.transformer_encoder(lower_output)  # (batch_size, sentences, hidden_size)
         upper_output = upper_output[:, 0, :]  # (batch_size, hidden_size)
@@ -70,7 +76,7 @@ class HiearchicalModel(nn.Module):
         return upper_output
 
     def _freeze_lower(self):
-        for param in self.lower_model.bert.parameters():
+        for param in self.lower_model.base_model.parameters():
             param.requires_grad = False
 
 

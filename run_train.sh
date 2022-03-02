@@ -1,9 +1,9 @@
 #!/bin/bash
 
-python train.py \
-    --train_file C:\\Users\\onurg\\.cache\\huggingface\\datasets\\updated_wiki40b\\tiny_dataset \
+CUDA_VISIBLE_DEVICES = "3,4,5,6" accelerate launch python train.py \
+    --train_file /work/ogalolu/datasets/tiny_dataset \
     #--validation_split_percentage \
-    --model_name_or_path bert-base-multilingual-cased \
+    --model_name_or_path xlm-roberta-base \
     #--config_name \
     #--tokenizer_name \
     --per_device_train_batch_size 16 \
@@ -12,7 +12,7 @@ python train.py \
     #--max_train_steps 100000\
     --gradient_accumulation_steps 1 \
     --num_warmup_steps 3000 \
-    --output_dir ../trained_models\
+    --output_dir ../trained_models \
     --seed 42 \
     #--model_type \
     --max_seq_length 128 \
