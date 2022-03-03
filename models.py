@@ -28,8 +28,9 @@ class HiearchicalModel(nn.Module):
 
         self.tokenizer = tokenizer
         self.lower_model.resize_token_embeddings(len(self.tokenizer))
+        self.embeddings = self.lower_model.bert.embeddings
 
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.lower_config.hidden_dimension,
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.lower_config.hidden_size,
                                                         nhead=args.upper_nhead,
                                                         dim_feedforward=args.upper_dim_feedforward,
                                                         dropout=args.upper_dropout,
@@ -39,10 +40,11 @@ class HiearchicalModel(nn.Module):
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer=self.encoder_layer,
                                                          num_layers=args.upper_num_layers)
 
+        # If True, freeze the lower encoder
         if args.frozen:
             self._freeze_lower()
 
-        # TODO: check
+        # If positional encoding will be used in upper encoder or not
         self.upper_positional = getattr(args, "upper_positional", True)
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
@@ -64,11 +66,11 @@ class HiearchicalModel(nn.Module):
                                      return_token_type_ids=False)
         # TODO: Maybe create random tensors instead?
         dcls_tokens.to(lower_output.device)
-        dcls_out = self.lower_model.base_model.embeddings.word_embeddings(dcls_tokens["input_ids"])
+        dcls_out = self.embeddings.word_embeddings(dcls_tokens["input_ids"])
         lower_output = torch.cat([dcls_out, lower_output], dim=1)
 
         if self.upper_positional:
-            lower_output = self.lower_model.base_model.embeddings(inputs_embeds=lower_output)
+            lower_output = self.embeddings(inputs_embeds=lower_output)
 
         upper_output = self.transformer_encoder(lower_output)  # (batch_size, sentences, hidden_size)
         upper_output = upper_output[:, 0, :]  # (batch_size, hidden_size)
@@ -93,14 +95,6 @@ class ContrastiveModel(nn.Module):
             raise NotImplementedError("Respective similarity function is not implemented.")
 
     def forward(self, article_1, mask_1, article_2, mask_2, article_3, mask_3, article_4, mask_4):
-        # output_1 = self.hierarchical_model(input_ids=article_1,
-        #                                    attention_mask=mask_1)  # (batch_size, hidden_size)
-        # output_2 = self.hierarchical_model(input_ids=article_2,
-        #                                    attention_mask=mask_2)  # (batch_size, hidden_size)
-
-        # scores = self.similarity_fct(output_1, output_2) * self.scale
-        # labels = torch.tensor(range(len(scores)), dtype=torch.long, device=scores.device)
-
         output_1 = self.hierarchical_model(input_ids=article_1,
                                            attention_mask=mask_1)  # (batch_size, hidden_size)
         output_2 = self.hierarchical_model(input_ids=article_2,
@@ -110,8 +104,8 @@ class ContrastiveModel(nn.Module):
         output_4 = self.hierarchical_model(input_ids=article_4,
                                            attention_mask=mask_4)  # (batch_size, hidden_size)
 
-        scores_1 = self.similarity_fct(output_1, output_2, output_3) * self.scale
-        scores_2 = self.similarity_fct(output_2, output_1, output_4) * self.scale
+        scores_1 = self.similarity_fct(output_1, torch.cat([output_2, output_3])) * self.scale
+        scores_2 = self.similarity_fct(output_2, torch.cat([output_1, output_4])) * self.scale
 
         labels = torch.tensor(range(len(scores_1)), dtype=torch.long, device=scores_1.device)
         return self.cross_entropy_loss(scores_1, labels) + self.cross_entropy_loss(scores_2, labels)

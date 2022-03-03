@@ -37,7 +37,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 import transformers
-from accelerate import Accelerator, DistributedType
+from accelerate import Accelerator, DistributedType, DistributedDataParallelKwargs
 from huggingface_hub import Repository
 from tokenizers import Tokenizer
 from transformers import (
@@ -289,7 +289,9 @@ def main():
     args = parse_arguments()
 
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
-    accelerator = Accelerator()
+    # Modified: for handling unsued parameters
+    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+    accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
     # Make one log on every process with the configuration for debugging.
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
