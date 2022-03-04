@@ -498,25 +498,22 @@ def main():
 
             if completed_steps >= args.max_train_steps:
                 break
-        # TODO: change evaluation pipeline
         model.eval()
         losses = []
         for step, batch in enumerate(eval_dataloader):
             with torch.no_grad():
                 # Modified for Contrastive Model
                 loss = model(**batch)
-
             losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))
 
         losses = torch.cat(losses)
         losses = losses[: len(eval_dataset)]
-        # TODO: change
         try:
-            perplexity = math.exp(torch.mean(losses))
+            total_loss = torch.mean(losses)
         except OverflowError:
-            perplexity = float("inf")
+            total_loss = float("inf")
 
-        logger.info(f"epoch {epoch}: perplexity: {perplexity}")
+        logger.info(f"epoch {epoch}: loss: {total_loss}")
 
         if args.push_to_hub and epoch < args.num_train_epochs - 1:
             accelerator.wait_for_everyone()
