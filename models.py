@@ -95,6 +95,7 @@ class ContrastiveModel(nn.Module):
         super().__init__()
         self.hierarchical_model = HiearchicalModel(args, tokenizer)
         self.scale = args.scale
+        self.use_hard_negative = args.use_self_negative
         self.cross_entropy_loss = nn.CrossEntropyLoss()
 
         if args.similarity_fct == "cos_sim":
@@ -107,13 +108,17 @@ class ContrastiveModel(nn.Module):
                                            attention_mask=mask_1)  # (batch_size, hidden_size)
         output_2 = self.hierarchical_model(input_ids=article_2,
                                            attention_mask=mask_2)  # (batch_size, hidden_size)
-        output_3 = self.hierarchical_model(input_ids=article_3,
-                                           attention_mask=mask_3)  # (batch_size, hidden_size)
-        output_4 = self.hierarchical_model(input_ids=article_4,
-                                           attention_mask=mask_4)  # (batch_size, hidden_size)
+        if self.use_hard_negative:
+            output_3 = self.hierarchical_model(input_ids=article_3,
+                                               attention_mask=mask_3)  # (batch_size, hidden_size)
+            output_4 = self.hierarchical_model(input_ids=article_4,
+                                               attention_mask=mask_4)  # (batch_size, hidden_size)
 
-        scores_1 = self.similarity_fct(output_1, torch.cat([output_2, output_3])) * self.scale
-        scores_2 = self.similarity_fct(output_2, torch.cat([output_1, output_4])) * self.scale
+            scores_1 = self.similarity_fct(output_1, torch.cat([output_2, output_3])) * self.scale
+            scores_2 = self.similarity_fct(output_2, torch.cat([output_1, output_4])) * self.scale
+        else:
+            scores_1 = self.similarity_fct(output_1, output_2) * self.scale
+            scores_2 = self.similarity_fct(output_2, output_1) * self.scale
 
         labels = torch.tensor(range(len(scores_1)), dtype=torch.long, device=scores_1.device)
         return self.cross_entropy_loss(scores_1, labels) + self.cross_entropy_loss(scores_2, labels)
