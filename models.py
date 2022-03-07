@@ -95,7 +95,7 @@ class ContrastiveModel(nn.Module):
         super().__init__()
         self.hierarchical_model = HiearchicalModel(args, tokenizer)
         self.scale = args.scale
-        self.use_hard_negative = args.use_self_negative
+        self.use_hard_negatives = args.use_hard_negatives
         self.cross_entropy_loss = nn.CrossEntropyLoss()
 
         if args.similarity_fct == "cos_sim":
@@ -108,7 +108,7 @@ class ContrastiveModel(nn.Module):
                                            attention_mask=mask_1)  # (batch_size, hidden_size)
         output_2 = self.hierarchical_model(input_ids=article_2,
                                            attention_mask=mask_2)  # (batch_size, hidden_size)
-        if self.use_hard_negative:
+        if self.use_hard_negatives:
             output_3 = self.hierarchical_model(input_ids=article_3,
                                                attention_mask=mask_3)  # (batch_size, hidden_size)
             output_4 = self.hierarchical_model(input_ids=article_4,
