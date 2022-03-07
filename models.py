@@ -1,20 +1,25 @@
 """ A script that contains model classes to be used in training."""
 import torch
 from torch import nn
-from transformers import PreTrainedModel, AutoConfig, AutoModel
+from transformers import BertPreTrainedModel, PreTrainedModel, AutoConfig, AutoModel, BertModel
 
 from utils import cos_sim
 
 
-class LowerEncoder(PreTrainedModel):
+# TODO: BertModel specific
+class LowerEncoder(BertPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
-        self.base_model = AutoModel(config)
+        # TODO: BertModel specific
+        self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.post_init()
+        # TODO: BertModel specific
+        # TODO: change to post_init()
+        self.init_weights()
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
-        model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+        # TODO: BertModel specific
+        model_output = self.bert(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
         output = model_output['last_hidden_state'][:, 0, :]  # (batch_size, hidden_size)
         return output
 
@@ -28,6 +33,7 @@ class HiearchicalModel(nn.Module):
 
         self.tokenizer = tokenizer
         self.lower_model.resize_token_embeddings(len(self.tokenizer))
+        # TODO: BertModel specific
         self.embeddings = self.lower_model.bert.embeddings
 
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.lower_config.hidden_size,
@@ -73,9 +79,9 @@ class HiearchicalModel(nn.Module):
             lower_output = self.embeddings(inputs_embeds=lower_output)
 
         upper_output = self.transformer_encoder(lower_output)  # (batch_size, sentences, hidden_size)
-        upper_output = upper_output[:, 0, :]  # (batch_size, hidden_size)
+        final_output = upper_output[:, 0, :]  # (batch_size, hidden_size)
 
-        return upper_output
+        return final_output
 
     def _freeze_lower(self):
         for param in self.lower_model.base_model.parameters():
