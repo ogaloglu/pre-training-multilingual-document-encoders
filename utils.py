@@ -2,6 +2,7 @@
 import argparse
 import os
 import json
+from collections import namedtuple
 
 import torch
 from torch import Tensor
@@ -61,3 +62,19 @@ def save_args(args: argparse.Namespace):
     path = os.path.join(args.output_dir, "args.json")
     with open(path, 'w') as f:
         json.dump(args.__dict__, f, indent=2)
+
+
+def load_args(args_path: str) -> namedtuple:
+    """Load arguments of the pretrained model from the given json file.
+
+    Args:
+        args_path (str): Path of the arguments that are used for the pretrained.
+
+    Returns:
+        namedtuple: argparse.Namespace like object to store arguments.
+    """
+    with open(os.path.join(args_path, "args.json")) as f:
+        args = json.load(f)
+
+    args = namedtuple("Args", args.keys())(*args.values())
+    return args
