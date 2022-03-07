@@ -370,7 +370,7 @@ def main():
         raw_datasets = load_from_disk(args.train_file)
         # If no validation data is there, validation_split_percentage will be used to divide the dataset.
         if args.validation_file is None:
-            raw_datasets = raw_datasets.train_test_split(test_size=args.validation_split_percentage, seed=args.set)
+            raw_datasets = raw_datasets.train_test_split(test_size=args.validation_split_percentage, seed=args.seed)
 
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
