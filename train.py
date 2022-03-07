@@ -516,6 +516,8 @@ def main():
                 progress_bar.update(1)
                 completed_steps += 1
 
+            if step % 1000 == 0:
+                logger.info(f"step {step}: loss: {loss}")     
             if completed_steps >= args.max_train_steps:
                 break
         model.eval()
