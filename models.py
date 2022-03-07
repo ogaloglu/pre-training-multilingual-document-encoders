@@ -1,4 +1,6 @@
 """ A script that contains model classes to be used in training."""
+import os
+
 import torch
 from torch import nn
 from transformers import BertPreTrainedModel, PreTrainedModel, AutoConfig, AutoModel, BertModel
@@ -115,3 +117,29 @@ class ContrastiveModel(nn.Module):
 
         labels = torch.tensor(range(len(scores_1)), dtype=torch.long, device=scores_1.device)
         return self.cross_entropy_loss(scores_1, labels) + self.cross_entropy_loss(scores_2, labels)
+
+
+class HierarchicalClassificationModel(nn.Module):
+    def __init__(self, c_args, args, tokenizer, **kwargs):
+        super().__init__()
+        self.hierarchical_model = HiearchicalModel(args, tokenizer)
+        self.hierarchical_model.load_state_dict(torch.load(os.path.join(c_args.saved_directory, "model.pth")))
+
+        self.num_labels = c_args.num_labels
+        self.dropout = nn.Dropout(c_args.dropout)
+        self.classifier = nn.Linear(self.hierarchical_model.lower_config.hidden_size, self.num_labels)
+
+    def forward(self, article_1, mask_1, labels):
+        output = self.hierarchical_model(input_ids=article_1, attention_mask=mask_1)
+
+        output = self.dropout(output)
+        logits = self.classifier(output)
+
+        if self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+        else:
+            loss_fct = nn.BCEWithLogitsLoss()
+            loss = loss_fct(logits, labels)
+
+        return loss
