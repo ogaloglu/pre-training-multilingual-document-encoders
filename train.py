@@ -370,7 +370,7 @@ def main():
         raw_datasets = load_from_disk(args.train_file)
         # If no validation data is there, validation_split_percentage will be used to divide the dataset.
         if args.validation_file is None:
-            raw_datasets = raw_datasets.train_test_split(test_size=args.validation_split_percentage)
+            raw_datasets = raw_datasets.train_test_split(test_size=args.validation_split_percentage, seed=args.set)
 
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
@@ -417,6 +417,9 @@ def main():
         article_numbers = 4
     else:
         article_numbers = 2
+        # remove hard negatives
+        raw_datasets = raw_datasets.remove_columns(['article_3', 'article_4'])
+    logging.info("article number is: ", article_numbers)
 
     with accelerator.main_process_first():
         tokenized_datasets = raw_datasets.map(
