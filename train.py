@@ -274,6 +274,18 @@ def parse_arguments():
         default=True,
         help="Either positional embeddings are used for the upper encoder or not."
     )
+    parser.add_argument(
+        "--use_hard_negatives",
+        type=bool,
+        required=True,
+        help="Either include hard negatives or not."
+    )
+    parser.add_argument(
+        "--is_pretraining",
+        type=bool,
+        default=True,
+        help="Either the mode is pretraining or not."
+    )
     args = parser.parse_args()
     # Sanity checks
     if args.dataset_name is None and args.train_file is None and args.validation_file is None:
@@ -399,10 +411,17 @@ def main():
     # First we tokenize all the texts.
     # Modified: Tokenization pipeline
 
+    if not args.is_pretraining:
+        article_numbers = 1
+    elif args.use_hard_negatives:
+        article_numbers = 4
+    else:
+        article_numbers = 2
+
     with accelerator.main_process_first():
         tokenized_datasets = raw_datasets.map(
             tokenize,
-            fn_kwargs={"tokenizer": tokenizer, "args": args},
+            fn_kwargs={"tokenizer": tokenizer, "args": args, "article_numbers": article_numbers},
             num_proc=args.preprocessing_num_workers,
             load_from_cache_file=not args.overwrite_cache,
             desc="Running tokenizer on dataset",
@@ -419,7 +438,8 @@ def main():
     # Modified: CustomDataCollator for documents
     data_collator = CustomDataCollator(tokenizer=tokenizer,
                                        max_sentence_len=args.max_seq_length,
-                                       max_document_len=args.max_document_length)
+                                       max_document_len=args.max_document_length,
+                                       article_numbers=article_numbers)
 
     # DataLoaders creation:
     train_dataloader = DataLoader(

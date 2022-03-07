@@ -32,7 +32,7 @@ def cos_sim(a: Tensor, b: Tensor):
     return torch.mm(a_norm, b_norm.transpose(0, 1))
 
 
-def tokenize(example, tokenizer, args: argparse.Namespace):
+def tokenize(example, tokenizer, args: argparse.Namespace, article_numbers: int):
 
     def tokenize_helper(article, tokenizer, args: argparse.Namespace):
         sentences = [tokenizer.encode(sentence, add_special_tokens=False) for sentence in sent_tokenize(article)]
@@ -46,8 +46,7 @@ def tokenize(example, tokenizer, args: argparse.Namespace):
 
         return sentences, mask
 
-    # TODO: make article number dynamic
-    for i in range(1, 5):
+    for i in range(1, article_numbers + 1):
         example[f"article_{i}"], example[f"mask_{i}"] = tokenize_helper(example[f"article_{i}"], tokenizer, args)
 
     return example

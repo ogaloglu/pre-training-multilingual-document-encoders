@@ -16,7 +16,8 @@ accelerate launch train.py \
     --upper_nhead 8 \
     --upper_num_layers 2 \
     --frozen True \
-    --upper_positional True
+    --upper_positional True \
+    --use_hard_negatives False
 
 
 # CUDA_VISIBLE_DEVICES = "1,2,3" accelerate launch train.py \

@@ -11,6 +11,7 @@ class CustomDataCollator:
     sentences.
     """
     tokenizer: None
+    article_numbers: int = None
     max_sentence_len: int = 128
     max_document_len: int = 32
     return_tensors: str = "pt"
@@ -20,7 +21,7 @@ class CustomDataCollator:
         batch = {}
 
         # TODO: make article number dynamic
-        for article_number in range(1, 5):
+        for article_number in range(1, self.article_numbers + 1):
             batch_sentences = list()
             batch_masks = list()
 
