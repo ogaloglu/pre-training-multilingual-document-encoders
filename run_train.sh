@@ -1,11 +1,11 @@
 #!/bin/bash
 
 accelerate launch train.py \
-    --train_file /work/ogalolu/datasets/tiny_dataset \
+    --train_file /work/ogalolu/datasets/final_small_en_0.3 \
     --model_name_or_path bert-base-multilingual-cased \
     --per_device_train_batch_size 16 \
     --per_device_eval_batch_size 16 \
-    --num_train_epochs 3\
+    --num_train_epochs 2\
     --gradient_accumulation_steps 1 \
     --num_warmup_steps 3000 \
     --output_dir ../trained_models \
