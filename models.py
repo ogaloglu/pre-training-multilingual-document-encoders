@@ -103,7 +103,7 @@ class ContrastiveModel(nn.Module):
         else:
             raise NotImplementedError("Respective similarity function is not implemented.")
 
-    def forward(self, article_1, mask_1, article_2, mask_2, article_3, mask_3, article_4, mask_4):
+    def forward(self, article_1, mask_1, article_2, mask_2, article_3=None, mask_3=None, article_4=None, mask_4=None):
         output_1 = self.hierarchical_model(input_ids=article_1,
                                            attention_mask=mask_1)  # (batch_size, hidden_size)
         output_2 = self.hierarchical_model(input_ids=article_2,
