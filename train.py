@@ -265,25 +265,24 @@ def parse_arguments():
         required=True,
         help="The number of sub-encoder-layers in the encoder of the upper level encoder.",
     )
-    parser.add_argument(
-        "--frozen", type=bool, default=True, help="Either the lower level encoder is frozen or not."
+        parser.add_argument(
+        "--frozen", 
+        action="store_true",
+        help="Either the lower level encoder is frozen or not."
     )
     parser.add_argument(
         "--upper_positional",
-        type=bool,
-        default=True,
+        action="store_true",
         help="Either positional embeddings are used for the upper encoder or not."
     )
     parser.add_argument(
         "--use_hard_negatives",
-        type=bool,
-        required=True,
+        action="store_true",
         help="Either include hard negatives or not."
     )
     parser.add_argument(
         "--is_pretraining",
-        type=bool,
-        default=True,
+        action="store_true",
         help="Either the mode is pretraining or not."
     )
     args = parser.parse_args()
@@ -419,7 +418,7 @@ def main():
         article_numbers = 2
         # remove hard negatives
         raw_datasets = raw_datasets.remove_columns(['article_3', 'article_4'])
-    logging.info("article number is: ", article_numbers)
+    logging.info("article number is: %s ", article_numbers)
 
     with accelerator.main_process_first():
         tokenized_datasets = raw_datasets.map(
