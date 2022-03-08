@@ -125,11 +125,11 @@ class ContrastiveModel(nn.Module):
         return self.cross_entropy_loss(scores_1, labels) + self.cross_entropy_loss(scores_2, labels)
 
 
-class HierarchicalClassificationModel(nn.Module):
+class HierarchicalClassificationModel(nn.Modsule):
     def __init__(self, c_args, args, tokenizer, num_labels, **kwargs):
         super().__init__()
         self.hierarchical_model = HiearchicalModel(args, tokenizer)
-        self.hierarchical_model.load_state_dict(torch.load(os.path.join(c_args.pretrained_directory, "model.pth")))
+        self.hierarchical_model.load_state_dict(torch.load(os.path.join(c_args.pretrained_dir, "model.pth")))
 
         self.num_labels = num_labels
         self.dropout = nn.Dropout(c_args.dropout)
