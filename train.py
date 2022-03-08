@@ -285,6 +285,12 @@ def parse_arguments():
         action="store_true",
         help="Either the mode is pretraining or not."
     )
+    parser.add_argument(
+        "--logging_steps",
+        type=int,
+        default=500,
+        help="Frequency of logging mini-batch loss .",
+    )
     args = parser.parse_args()
     # Sanity checks
     if args.dataset_name is None and args.train_file is None and args.validation_file is None:
@@ -506,6 +512,7 @@ def main():
 
     for epoch in range(args.num_train_epochs):
         model.train()
+        running_loss = 0.0
         for step, batch in enumerate(train_dataloader):
             # Modified for ContrastiveModel
             loss = model(**batch)
@@ -517,9 +524,11 @@ def main():
                 optimizer.zero_grad()
                 progress_bar.update(1)
                 completed_steps += 1
-
-            if step % 1000 == 0:
-                logger.info(f"step {step}: loss: {loss}")     
+            # TODO: change
+                running_loss += loss.item()
+            if step % args.logging_steps == args.logging_steps - 1:
+                logger.info(f"epoch: {epoch}, step {step}:, loss: {loss/args.logging_steps}")
+                running_loss = 0.0
             if completed_steps >= args.max_train_steps:
                 break
         model.eval()
@@ -542,6 +551,7 @@ def main():
         if args.push_to_hub and epoch < args.num_train_epochs - 1:
             accelerator.wait_for_everyone()
             unwrapped_model = accelerator.unwrap_model(model)
+            # Modified
             accelerator.save(obj=unwrapped_model.hierarchical_model.state_dict(),
                              f=args.output_dir + "/model.pth")
             if accelerator.is_main_process:
@@ -553,6 +563,7 @@ def main():
     if args.output_dir is not None:
         accelerator.wait_for_everyone()
         unwrapped_model = accelerator.unwrap_model(model)
+        # Modified
         accelerator.save(obj=unwrapped_model.hierarchical_model.state_dict(),
                          f=args.output_dir + "/model.pth")
         if accelerator.is_main_process:
