@@ -126,12 +126,12 @@ class ContrastiveModel(nn.Module):
 
 
 class HierarchicalClassificationModel(nn.Module):
-    def __init__(self, c_args, args, tokenizer, **kwargs):
+    def __init__(self, c_args, args, tokenizer, num_labels, **kwargs):
         super().__init__()
         self.hierarchical_model = HiearchicalModel(args, tokenizer)
-        self.hierarchical_model.load_state_dict(torch.load(os.path.join(c_args.saved_directory, "model.pth")))
+        self.hierarchical_model.load_state_dict(torch.load(os.path.join(c_args.pretrained_directory, "model.pth")))
 
-        self.num_labels = c_args.num_labels
+        self.num_labels = num_labels
         self.dropout = nn.Dropout(c_args.dropout)
         self.classifier = nn.Linear(self.hierarchical_model.lower_config.hidden_size, self.num_labels)
 
