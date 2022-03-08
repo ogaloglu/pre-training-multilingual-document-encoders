@@ -87,7 +87,7 @@ class HiearchicalModel(nn.Module):
         return final_output
 
     def _freeze_lower(self):
-        for param in self.lower_model.base_model.parameters():
+        for param in self.lower_model.bert.parameters():
             param.requires_grad = False
 
 
@@ -132,7 +132,8 @@ class HierarchicalClassificationModel(nn.Modsule):
         self.hierarchical_model.load_state_dict(torch.load(os.path.join(c_args.pretrained_dir, "model.pth")))
 
         self.num_labels = num_labels
-        self.dropout = nn.Dropout(c_args.dropout)
+        if c_args.dropout is not None:
+            self.dropout = nn.Dropout(c_args.dropout)
         self.classifier = nn.Linear(self.hierarchical_model.lower_config.hidden_size, self.num_labels)
 
     def forward(self, article_1, mask_1, labels):
