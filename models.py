@@ -4,6 +4,7 @@ import os
 import torch
 from torch import nn
 from transformers import BertPreTrainedModel, PreTrainedModel, AutoConfig, AutoModel, BertModel
+from transformers.modeling_outputs import SequenceClassifierOutput
 
 from utils import cos_sim
 
@@ -147,4 +148,7 @@ class HierarchicalClassificationModel(nn.Module):
             loss_fct = nn.BCEWithLogitsLoss()
             loss = loss_fct(logits, labels)
 
-        return loss
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=logits
+        )
