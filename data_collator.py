@@ -20,7 +20,7 @@ class CustomDataCollator:
     def __call__(self, features: list) -> dict:
         batch = {}
 
-        for article_number in range(1, self.article_numbers):
+        for article_number in range(1, self.article_numbers + 1):
             batch_sentences = list()
             batch_masks = list()
 

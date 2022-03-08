@@ -265,7 +265,7 @@ def parse_arguments():
         required=True,
         help="The number of sub-encoder-layers in the encoder of the upper level encoder.",
     )
-        parser.add_argument(
+    parser.add_argument(
         "--frozen", 
         action="store_true",
         help="Either the lower level encoder is frozen or not."

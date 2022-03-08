@@ -47,7 +47,7 @@ def tokenize(example, tokenizer, args: argparse.Namespace, article_numbers: int)
 
         return sentences, mask
 
-    for i in range(1, article_numbers):
+    for i in range(1, article_numbers + 1):
         example[f"article_{i}"], example[f"mask_{i}"] = tokenize_helper(example[f"article_{i}"], tokenizer, args)
 
     return example
