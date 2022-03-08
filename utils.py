@@ -65,7 +65,7 @@ def save_args(args: argparse.Namespace):
 
 
 def load_args(args_path: str) -> namedtuple:
-    """Load arguments of the pretrained model from the given json file.
+    """Loads arguments of the pretrained model from the given json file.
 
     Args:
         args_path (str): Path of the arguments that are used for the pretrained.
