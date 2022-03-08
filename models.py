@@ -125,7 +125,7 @@ class ContrastiveModel(nn.Module):
         return self.cross_entropy_loss(scores_1, labels) + self.cross_entropy_loss(scores_2, labels)
 
 
-class HierarchicalClassificationModel(nn.Modsule):
+class HierarchicalClassificationModel(nn.Module):
     def __init__(self, c_args, args, tokenizer, num_labels, **kwargs):
         super().__init__()
         self.hierarchical_model = HiearchicalModel(args, tokenizer)
