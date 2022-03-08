@@ -26,7 +26,6 @@ import logging
 import math
 import os
 import random
-import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -204,7 +203,8 @@ def parse_arguments():
         type=str,
         default="cos_sim",
         # TODO: add choices for similarity function
-        help="Similarity function between sentence embeddings. By default, cos_sim. Can also be set to dot product (and then set scale to 1).",
+        help="Similarity function between sentence embeddings. By default, cos_sim."
+             "Can also be set to dot product (and then set scale to 1).",
     )
     parser.add_argument(
         "--tokenizer_file",
@@ -217,7 +217,8 @@ def parse_arguments():
         type=int,
         default=None,
         required=True,
-        help="The maximum number of sentences each document can have. Documents are either truncated or padded if their length is different.",
+        help="The maximum number of sentences each document can have. Documents are either truncated"
+             "or padded if their length is different.",
     )
     # parser.add_argument(
     #     "--upper_hidden_dimension",
@@ -266,7 +267,7 @@ def parse_arguments():
         help="The number of sub-encoder-layers in the encoder of the upper level encoder.",
     )
     parser.add_argument(
-        "--frozen", 
+        "--frozen",
         action="store_true",
         help="Either the lower level encoder is frozen or not."
     )
