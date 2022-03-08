@@ -46,6 +46,11 @@ class CustomDataCollator:
 
             batch[f"article_{article_number}"] = torch.tensor(batch_sentences, dtype=torch.int64)
             batch[f"mask_{article_number}"] = torch.tensor(batch_masks, dtype=torch.int64)
+
+            # Modified for classification task
+            if "labels" in features[0]:
+                batch["labels"] = torch.tensor([f["labels"] for f in features], dtype=torch.int64)
+
         return batch
 
     def pad_sentence(self, sen_len: int, feature: dict, article_number: int) -> tuple():
