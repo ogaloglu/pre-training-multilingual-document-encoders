@@ -3,7 +3,7 @@ import os
 
 import torch
 from torch import nn
-from transformers import BertPreTrainedModel, PreTrainedModel, AutoConfig, AutoModel, BertModel
+from transformers import BertPreTrainedModel, AutoConfig, RobertaPreTrainedModel, BertModel
 from transformers.modeling_outputs import SequenceClassifierOutput
 
 from utils import cos_sim
@@ -16,18 +16,17 @@ class LowerEncoder(BertPreTrainedModel):
         # TODO: BertModel specific
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        # TODO: BertModel specific
         # TODO: change to post_init()
         self.init_weights()
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
-        # TODO: BertModel specific
-        model_output = self.bert(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+        model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
         output = model_output['last_hidden_state'][:, 0, :]  # (batch_size, hidden_size)
         return output
 
 
 class HiearchicalModel(nn.Module):
+    # self.lower_model.base_model is a reference to self.lower_model.bert
     def __init__(self, args, tokenizer, **kwargs):
         super().__init__()
         # TODO: from pretrained or config
@@ -36,8 +35,6 @@ class HiearchicalModel(nn.Module):
 
         self.tokenizer = tokenizer
         self.lower_model.resize_token_embeddings(len(self.tokenizer))
-        # TODO: BertModel specific
-        self.embeddings = self.lower_model.bert.embeddings
 
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.lower_config.hidden_size,
                                                         nhead=args.upper_nhead,
@@ -75,11 +72,11 @@ class HiearchicalModel(nn.Module):
                                      return_token_type_ids=False)
         # TODO: Maybe create random tensors instead?
         dcls_tokens.to(lower_output.device)
-        dcls_out = self.embeddings.word_embeddings(dcls_tokens["input_ids"])
+        dcls_out = self.lower_model.base_model.embeddings.word_embeddings(dcls_tokens["input_ids"])
         lower_output = torch.cat([dcls_out, lower_output], dim=1)
 
         if self.upper_positional:
-            lower_output = self.embeddings(inputs_embeds=lower_output)
+            lower_output = self.lower_model.base_model.embeddings(inputs_embeds=lower_output)
 
         upper_output = self.transformer_encoder(lower_output)  # (batch_size, sentences, hidden_size)
         final_output = upper_output[:, 0, :]  # (batch_size, hidden_size)
@@ -87,7 +84,7 @@ class HiearchicalModel(nn.Module):
         return final_output
 
     def _freeze_lower(self):
-        for param in self.lower_model.bert.parameters():
+        for param in self.lower_model.base_model.parameters():
             param.requires_grad = False
 
 
