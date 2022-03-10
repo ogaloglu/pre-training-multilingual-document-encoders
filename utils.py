@@ -58,15 +58,26 @@ def custom_tokenize(example, tokenizer, args: argparse.Namespace, article_number
     return example
 
 
-def save_args(args: argparse.Namespace):
+def save_args(args: argparse.Namespace, args_path: str = None, pretrained: bool = False):
     """Saves command line arguments to a json file.
 
     Args:
         args (argparse.Namespace): Arguments to be saved.
     """
-    path = os.path.join(args.output_dir, "args.json")
-    with open(path, 'w') as f:
-        json.dump(args.__dict__, f, indent=2)
+    # TODO: has to be refactored.
+    if not pretrained:
+        if args_path is None:
+            args_path = args.output_dir
+        path = os.path.join(args_path, "args.json")
+        with open(path, 'w') as f:
+            json.dump(args.__dict__, f, indent=2)
+            print("args")
+    else:
+        path = os.path.join(args_path, "pretrained_args.json")
+        with open(path, 'w') as f:
+            args = args._asdict()
+            json.dump(args, f, indent=2)
+            print("p_args")
 
 
 def load_args(args_path: str) -> namedtuple:
