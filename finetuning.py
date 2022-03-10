@@ -275,7 +275,7 @@ def main():
         # Modified
         raw_datasets = raw_datasets.rename_column("text", "article_1")
         processed_datasets = raw_datasets.map(
-            tokenize,
+            custom_tokenize,
             fn_kwargs={"tokenizer": tokenizer, "args": args, "article_numbers": ARTICLE_NUMBERS},
             num_proc=args.preprocessing_num_workers,
             load_from_cache_file=not args.overwrite_cache,
