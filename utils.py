@@ -87,5 +87,5 @@ def load_args(args_path: str) -> namedtuple:
 
 def path_adder(args: argparse.Namespace) -> str:
 
-    i_path = f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.is_frozen else ''}_{args.epoch}_"
+    i_path = f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.frozen else ''}_{args.num_train_epochsh}__"
     return i_path

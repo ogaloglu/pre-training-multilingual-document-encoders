@@ -572,9 +572,9 @@ def main():
             # TODO: change later to save only one time
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(args.output_dir)
-                repo.push_to_hub(
-                    commit_message=f"Training in progress epoch {epoch}", blocking=False, auto_lfs_prune=True
-                )
+                # repo.push_to_hub(
+                #     commit_message=f"Training in progress epoch {epoch}", blocking=False, auto_lfs_prune=True
+                # )
 
     # if args.output_dir is not None:
     #     accelerator.wait_for_everyone()
