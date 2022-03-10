@@ -38,7 +38,7 @@ def cos_sim(a: Tensor, b: Tensor):
     return torch.mm(a_norm, b_norm.transpose(0, 1))
 
 
-def tokenize(example, tokenizer, args: argparse.Namespace, article_numbers: int):
+def custom_tokenize(example, tokenizer, args: argparse.Namespace, article_numbers: int):
 
     def tokenize_helper(article, tokenizer, args: argparse.Namespace):
         sentences = [tokenizer.encode(sentence, add_special_tokens=False) for sentence in sent_tokenize(article)]

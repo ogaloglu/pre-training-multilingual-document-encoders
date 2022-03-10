@@ -54,7 +54,7 @@ from transformers.utils.versions import require_version
 
 from models import ContrastiveModel
 from data_collator import CustomDataCollator
-from utils import tokenize, save_args, path_adder
+from utils import custom_tokenize, save_args, path_adder
 
 logger = logging.getLogger(__name__)
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt")
@@ -442,7 +442,7 @@ def main():
 
     with accelerator.main_process_first():
         tokenized_datasets = raw_datasets.map(
-            tokenize,
+            custom_tokenize,
             fn_kwargs={"tokenizer": tokenizer, "args": args, "article_numbers": article_numbers},
             num_proc=args.preprocessing_num_workers,
             load_from_cache_file=not args.overwrite_cache,

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # coding=utf-8
 # Copyright 2021 The HuggingFace Inc. team. All rights reserved.
 #
@@ -38,7 +39,7 @@ from transformers import (
 from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
 
-from utils import tokenize, load_args, save_args
+from utils import custom_tokenize, load_args, save_args
 from data_collator import CustomDataCollator
 from models import HierarchicalClassificationModel
 
@@ -271,6 +272,8 @@ def main():
 
     # TODO: additional condition for model type
     with accelerator.main_process_first():
+        # Modified
+        raw_datasets = raw_datasets.rename_column("text", "article_1")
         processed_datasets = raw_datasets.map(
             tokenize,
             fn_kwargs={"tokenizer": tokenizer, "args": args, "article_numbers": ARTICLE_NUMBERS},
