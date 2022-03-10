@@ -21,6 +21,7 @@ import random
 from datetime import datetime
 from pathlib import Path
 
+import torch
 import datasets
 from datasets import load_from_disk, load_metric
 from torch.utils.data import DataLoader
@@ -191,7 +192,7 @@ def main():
                                             args=pretrained_args,
                                             tokenizer=tokenizer,
                                             num_labels=num_labels)
-
+    model.load_state_dict(torch.load(os.path.join(args.finetuned_dir, "model.pth")))
     # Modified: Default for finetuning
     ARTICLE_NUMBERS = 1
 
@@ -232,7 +233,7 @@ def main():
     metric = load_metric("accuracy")
 
     model.eval()
-    for batch in enumerate(test_dataloader):
+    for batch in test_dataloader:
         # Modified for Hierarchical Classification Model
         outputs = model(**batch)
         predictions = outputs.logits.argmax(dim=-1)
@@ -241,8 +242,8 @@ def main():
             references=accelerator.gather(batch["labels"]),
         )
 
-        eval_metric = metric.compute()
-        logger.info(f"final accuracy: {eval_metric}")
+    eval_metric = metric.compute()
+    logger.info(f"final accuracy: {eval_metric}")
 
 
 if __name__ == "__main__":
