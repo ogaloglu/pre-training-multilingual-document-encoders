@@ -9,6 +9,11 @@ from torch import Tensor
 from nltk import sent_tokenize
 
 
+MODEL_MAPPING = {
+    "bert-base-multilingual-cased": "mbert"
+}
+
+
 def cos_sim(a: Tensor, b: Tensor):
     """
     Computes the cosine similarity cos_sim(a[i], b[j]) for all i and j.
@@ -78,3 +83,9 @@ def load_args(args_path: str) -> namedtuple:
 
     args = namedtuple("Args", args.keys())(*args.values())
     return args
+
+
+def path_adder(args: argparse.Namespace) -> str:
+
+    i_path = f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.is_frozen else ''}_{args.epoch}_"
+    return i_path
