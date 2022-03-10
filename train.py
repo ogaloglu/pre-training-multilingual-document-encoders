@@ -239,6 +239,12 @@ def parse_arguments():
         help="The dimension of the feedforward network model of the upper level encoder.",
     )
     parser.add_argument(
+        "--lower_dropout",
+        type=float,
+        default=0.1,
+        help="The dropout value of lower level encoder.",
+    )
+    parser.add_argument(
         "--upper_dropout",
         type=float,
         default=0.1,
@@ -569,6 +575,7 @@ def main():
             # Modified
             accelerator.save(obj=unwrapped_model.hierarchical_model.state_dict(),
                              f=args.output_dir + "/model.pth")
+            logger.info(f"model after spoch {epoch} is saved")
             # TODO: change later to save only one time
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(args.output_dir)
