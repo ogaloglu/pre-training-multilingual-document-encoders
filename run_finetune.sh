@@ -1,8 +1,8 @@
 #!/bin/bash
 
 accelerate launch finetune.py \
-    --train_file /work/ogalolu/datasets/mldoc/en/train 
-    --validation_file /work/ogalolu/datasets/mldoc/en/train
+    --train_file /work/ogalolu/datasets/mldoc/en/train \
+    --validation_file /work/ogalolu/datasets/mldoc/en/validation \
     --pretrained_dir /home/ogalolu/thesis/trained_models/mbert_2_frozen_4__2022_03_10-15_38_36 \
     --per_device_train_batch_size 32 \
     --per_device_eval_batch_size 32 \
