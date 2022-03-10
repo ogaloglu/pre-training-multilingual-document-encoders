@@ -99,7 +99,7 @@ def load_args(args_path: str) -> namedtuple:
 def path_adder(args: argparse.Namespace, finetuning=False) -> str:
 
     if not finetuning:
-        i_path = f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.frozen else ''}_{args.num_train_epochsh}__"
+        i_path = f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.frozen else ''}_{args.num_train_epochs}__"
     else:
         i_path = f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}__"
     return i_path
