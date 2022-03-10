@@ -78,14 +78,17 @@ def load_args(args_path: str) -> namedtuple:
     Returns:
         namedtuple: argparse.Namespace like object to store arguments.
     """
-    with open(os.path.join(args_path, "args.json")) as f:
+    with open(args_path) as f:
         args = json.load(f)
 
     args = namedtuple("Args", args.keys())(*args.values())
     return args
 
 
-def path_adder(args: argparse.Namespace) -> str:
+def path_adder(args: argparse.Namespace, finetuning=False) -> str:
 
-    i_path = f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.frozen else ''}_{args.num_train_epochsh}__"
+    if not finetuning:
+        i_path = f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.frozen else ''}_{args.num_train_epochsh}__"
+    else:
+        i_path = f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}__"
     return i_path

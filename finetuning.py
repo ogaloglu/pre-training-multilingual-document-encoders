@@ -39,7 +39,7 @@ from transformers import (
 from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
 
-from utils import custom_tokenize, load_args, save_args
+from utils import custom_tokenize, load_args, save_args, path_adder
 from data_collator import CustomDataCollator
 from models import HierarchicalClassificationModel
 
@@ -94,6 +94,9 @@ def parse_args():
         "--use_slow_tokenizer",
         action="store_true",
         help="If passed, will use a slow tokenizer (not backed by the 🤗 Tokenizers library).",
+    )
+    parser.add_argument(
+        "--overwrite_cache", type=bool, default=False, help="Overwrite the cached training and evaluation sets"
     )
     parser.add_argument(
         "--per_device_train_batch_size",
@@ -172,11 +175,17 @@ def parse_args():
         default=None,
         help="The dropout value of upper level encoder.",
     )
+    parser.add_argument(
+        "--logging_steps",
+        type=int,
+        default=500,
+        help="Frequency of logging mini-batch loss .",
+    )
     args = parser.parse_args()
 
     # Sanity checks
-    if args.task_name is None and args.train_file is None and args.validation_file is None:
-        raise ValueError("Need either a task name or a training/validation file.")
+    if args.train_file is None:
+        raise ValueError("Need training file.")
 
     if args.push_to_hub:
         assert args.output_dir is not None, "Need an `output_dir` to create a repo when `--push_to_hub` is passed."
@@ -206,8 +215,9 @@ def main():
             repo = Repository(args.output_dir, clone_from=repo_name)
         elif args.output_dir is not None:
             # Modified: output_dir is concatanated with datetime and command line arguments are also saved
-            # TODO: consider also adding model name to the path
-            args.output_dir = os.path.join(args.output_dir, datetime.now().strftime("%Y_%m_%d-%H_%M_%S"))
+            inter_path = path_adder(pretrained_args, finetuning=True)
+            inter_path += datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
+            args.output_dir = os.path.join(args.output_dir, inter_path)
             os.makedirs(args.output_dir, exist_ok=True)
             save_args(args)
 
@@ -242,8 +252,8 @@ def main():
 
     # Modified:
     raw_datasets = load_from_disk(args.train_file)
-    if args.validation_file is None:
-        raw_datasets = raw_datasets.train_test_split(test_size=args.validation_split_percentage, seed=args.seed)
+    # if args.validation_file is None:
+    #     raw_datasets = raw_datasets.train_test_split(test_size=args.validation_split_percentage, seed=args.seed)
 
     # Labels
     # Modified
@@ -397,8 +407,8 @@ def main():
         logger.info(f"epoch {epoch}: {eval_metric}")
 
         # TODO: save checkpoints
-        if eval_metric < best_score:
-            best_score = eval_metric
+        if eval_metric['accuracy'] < best_score:
+            best_score = eval_metric['accuracy']
             accelerator.wait_for_everyone()
             unwrapped_model = accelerator.unwrap_model(model)
             # Modified
