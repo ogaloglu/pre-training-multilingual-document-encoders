@@ -15,7 +15,6 @@ class LowerEncoder(BertPreTrainedModel):
         super().__init__(config)
         # TODO: BertModel specific
         self.bert = BertModel(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
         # TODO: change to post_init()
         self.init_weights()
 
@@ -32,6 +31,8 @@ class HiearchicalModel(nn.Module):
         # TODO: from pretrained or config
         self.lower_config = AutoConfig.from_pretrained(args.model_name_or_path)
         self.lower_model = LowerEncoder.from_pretrained(args.model_name_or_path)
+        # Modified: move dropout
+        self.lower_dropout = nn.Dropout(args.lower_dropout)
 
         self.tokenizer = tokenizer
         self.lower_model.resize_token_embeddings(len(self.tokenizer))
@@ -59,7 +60,9 @@ class HiearchicalModel(nn.Module):
         lower_encoded = []
 
         for i_i, a_m in zip(input_ids, attention_mask):
-            lower_encoded.append(self.lower_model(i_i, a_m))
+            inter_output = self.lower_model(i_i, a_m)
+            inter_output = self.lower_dropout(inter_output)
+            lower_encoded.append(inter_output)
 
         lower_output = torch.stack(lower_encoded)  # (sentences, batch_size, hidden_size)
         lower_output = lower_output.permute(1, 0, 2)  # (batch_size, sentences, hidden_size)
