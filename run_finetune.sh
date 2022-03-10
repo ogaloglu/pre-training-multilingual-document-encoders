@@ -1,6 +1,6 @@
 #!/bin/bash
 
-accelerate launch finetune.py \
+accelerate launch finetuning.py \
     --train_file /work/ogalolu/datasets/mldoc/en/train \
     --validation_file /work/ogalolu/datasets/mldoc/en/validation \
     --pretrained_dir /home/ogalolu/thesis/trained_models/mbert_2_frozen_4__2022_03_10-15_38_36 \
