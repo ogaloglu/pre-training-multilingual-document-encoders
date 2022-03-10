@@ -220,6 +220,7 @@ def main():
             args.output_dir = os.path.join(args.output_dir, inter_path)
             os.makedirs(args.output_dir, exist_ok=True)
             save_args(args)
+            save_args(pretrained_args, args_path=args.output_dir, pretrained=True)
 
     # Make one log on every process with the configuration for debugging.
     logging.basicConfig(
@@ -368,7 +369,7 @@ def main():
     completed_steps = 0
 
     # Modified for checkpoint saving:
-    best_score = float("inf")
+    best_score = float("-inf")
 
     for epoch in range(args.num_train_epochs):
         model.train()
@@ -407,14 +408,14 @@ def main():
         logger.info(f"epoch {epoch}: {eval_metric}")
 
         # TODO: save checkpoints
-        if eval_metric['accuracy'] < best_score:
+        if eval_metric['accuracy'] > best_score:
             best_score = eval_metric['accuracy']
             accelerator.wait_for_everyone()
             unwrapped_model = accelerator.unwrap_model(model)
             # Modified
             accelerator.save(obj=unwrapped_model.state_dict(),
                              f=args.output_dir + "/model.pth")
-            logger.info(f"model after spoch {epoch} is saved")
+            logger.info(f"model after epoch {epoch} is saved")
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(args.output_dir)
                 # repo.push_to_hub(
