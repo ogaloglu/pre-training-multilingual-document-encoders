@@ -22,12 +22,12 @@ from datetime import datetime
 from pathlib import Path
 
 import datasets
-from datasets import load_dataset, load_from_disk, load_metric
+from datasets import load_from_disk, load_metric
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 import transformers
-from accelerate import Accelerator
+from accelerate import Accelerator, DistributedDataParallelKwargs
 from huggingface_hub import Repository
 from transformers import (
     AdamW,
@@ -192,12 +192,34 @@ def main():
     # TODO: eliminate/ decide on args
 
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
-    accelerator = Accelerator()
+    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+    accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
+
+    # Handle the repository creation
+    if accelerator.is_main_process:
+        if args.push_to_hub:
+            if args.hub_model_id is None:
+                repo_name = get_full_repo_name(Path(args.output_dir).name, token=args.hub_token)
+            else:
+                repo_name = args.hub_model_id
+            repo = Repository(args.output_dir, clone_from=repo_name)
+        elif args.output_dir is not None:
+            # Modified: output_dir is concatanated with datetime and command line arguments are also saved
+            # TODO: consider also adding model name to the path
+            args.output_dir = os.path.join(args.output_dir, datetime.now().strftime("%Y_%m_%d-%H_%M_%S"))
+            os.makedirs(args.output_dir, exist_ok=True)
+            save_args(args)
+
     # Make one log on every process with the configuration for debugging.
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO,
+        # Modified
+        handlers=[
+            logging.FileHandler(os.path.join(args.output_dir, "loginfo.log")),
+            logging.StreamHandler()
+        ]
     )
     logger.info(accelerator.state)
 
@@ -215,46 +237,8 @@ def main():
     if args.seed is not None:
         set_seed(args.seed)
 
-    # Handle the repository creation
-    if accelerator.is_main_process:
-        if args.push_to_hub:
-            if args.hub_model_id is None:
-                repo_name = get_full_repo_name(Path(args.output_dir).name, token=args.hub_token)
-            else:
-                repo_name = args.hub_model_id
-            repo = Repository(args.output_dir, clone_from=repo_name)
-        elif args.output_dir is not None:
-            # Modified: output_dir is concatanated with datetime and command line arguments are also saved
-            # TODO: consider also adding model name to the path
-            args.output_dir = os.path.join(args.output_dir, datetime.now().strftime("%Y_%m_%d-%H_%M_%S"))
-            os.makedirs(args.output_dir, exist_ok=True)
-            save_args(args)
     accelerator.wait_for_everyone()
 
-    # Get the datasets: you can either provide your own CSV/JSON training and evaluation files (see below)
-    # or specify a GLUE benchmark task (the dataset will be downloaded automatically from the datasets Hub).
-
-    # For CSV/JSON files, this script will use as labels the column called 'label' and as pair of sentences the
-    # sentences in columns called 'sentence1' and 'sentence2' if such column exists or the first two columns not named
-    # label if at least two columns are provided.
-
-    # If the CSVs/JSONs contain only one non-label column, the script does single sentence classification on this
-    # single column. You can easily tweak this behavior (see below)
-
-    # In distributed training, the load_dataset function guarantee that only one local process can concurrently
-    # download the dataset.
-    # if args.task_name is not None:
-    #     # Downloading and loading a dataset from the hub.
-    #     raw_datasets = load_dataset("glue", args.task_name)
-    # else:
-    #     # Loading the dataset from local csv or json file.
-    #     data_files = {}
-    #     if args.train_file is not None:
-    #         data_files["train"] = args.train_file
-    #     if args.validation_file is not None:
-    #         data_files["validation"] = args.validation_file
-    #     extension = (args.train_file if args.train_file is not None else args.valid_file).split(".")[-1]
-    #     raw_datasets = load_dataset(extension, data_files=data_files)
     # Modified:
     raw_datasets = load_from_disk(args.train_file)
     if args.validation_file is None:
@@ -262,18 +246,21 @@ def main():
 
     # Labels
     # Modified
-    label_list = raw_datasets["train"].unique("label")
+    label_list = raw_datasets["train"].unique("labels")
     label_list.sort()  # Let's sort it for determinism
     num_labels = len(label_list)
 
     # Load pretrained model and tokenizer
     # TODO: change to classification arguments
+    # TODO: additional condition for model type
+
     tokenizer = AutoTokenizer.from_pretrained(pretrained_args.model_name_or_path, use_fast=not args.use_slow_tokenizer)
 
     # Modified: Model is set to be ContrastiveModel
     # Modified: Add token as document level [CLS]
     tokenizer.add_tokens(["[DCLS]"])
     # Modified. Hierarchical Classification Model
+    # TODO: additional condition for model type
     model = HierarchicalClassificationModel(c_args=args,
                                             args=pretrained_args,
                                             tokenizer=tokenizer,
@@ -282,6 +269,7 @@ def main():
     # Modified: Default for finetuning
     ARTICLE_NUMBERS = 1
 
+    # TODO: additional condition for model type
     with accelerator.main_process_first():
         processed_datasets = raw_datasets.map(
             tokenize,
@@ -299,6 +287,7 @@ def main():
     for index in random.sample(range(len(train_dataset)), 3):
         logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
 
+    # TODO: additional condition for model type
     # Modified
     data_collator = CustomDataCollator(tokenizer=tokenizer,
                                        max_sentence_len=pretrained_args.max_seq_length if args.max_seq_length is None else args.max_seq_length,
@@ -365,6 +354,9 @@ def main():
     progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
     completed_steps = 0
 
+    # Modified for checkpoint saving:
+    best_score = float("inf")
+
     for epoch in range(args.num_train_epochs):
         model.train()
         running_loss = 0.0
@@ -383,7 +375,7 @@ def main():
             # TODO: change
                 running_loss += loss.item()
             if step % args.logging_steps == args.logging_steps - 1:
-                logger.info(f"epoch: {epoch}, step {step}:, loss: {loss/args.logging_steps}")
+                logger.info(f"epoch: {epoch}, step {step+1}:, loss: {loss/args.logging_steps}")
                 running_loss = 0.0
             if completed_steps >= args.max_train_steps:
                 break
@@ -402,28 +394,30 @@ def main():
         logger.info(f"epoch {epoch}: {eval_metric}")
 
         # TODO: save checkpoints
-        if args.push_to_hub and epoch < args.num_train_epochs - 1:
+        if eval_metric < best_score:
+            best_score = eval_metric
             accelerator.wait_for_everyone()
             unwrapped_model = accelerator.unwrap_model(model)
             # Modified
             accelerator.save(obj=unwrapped_model.state_dict(),
                              f=args.output_dir + "/model.pth")
+            logger.info(f"model after spoch {epoch} is saved")
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(args.output_dir)
-                repo.push_to_hub(
-                    commit_message=f"Training in progress epoch {epoch}", blocking=False, auto_lfs_prune=True
-                )
+                # repo.push_to_hub(
+                #     commit_message=f"Training in progress epoch {epoch}", blocking=False, auto_lfs_prune=True
+                # )
 
-    if args.output_dir is not None:
-        accelerator.wait_for_everyone()
-        unwrapped_model = accelerator.unwrap_model(model)
-        # Modified
-        accelerator.save(obj=unwrapped_model.state_dict(),
-                         f=args.output_dir + "/model.pth")
-        if accelerator.is_main_process:
-            tokenizer.save_pretrained(args.output_dir)
-            if args.push_to_hub:
-                repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
+    # if args.output_dir is not None:
+    #     accelerator.wait_for_everyone()
+    #     unwrapped_model = accelerator.unwrap_model(model)
+    #     # Modified
+    #     accelerator.save(obj=unwrapped_model.state_dict(),
+    #                      f=args.output_dir + "/model.pth")
+    #     if accelerator.is_main_process:
+    #         tokenizer.save_pretrained(args.output_dir)
+    #         if args.push_to_hub:
+    #             repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
 
 
 if __name__ == "__main__":
