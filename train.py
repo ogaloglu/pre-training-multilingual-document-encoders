@@ -45,9 +45,7 @@ from transformers import (
     AdamW,
     AutoConfig,
     AutoTokenizer,
-    AutoModel,
     BertTokenizerFast,
-    SchedulerType,
     get_scheduler,
     set_seed,
 )
@@ -56,7 +54,7 @@ from transformers.utils.versions import require_version
 
 from models import ContrastiveModel
 from data_collator import CustomDataCollator
-from utils import tokenize, save_args
+from utils import tokenize, save_args, path_adder
 
 logger = logging.getLogger(__name__)
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt")
@@ -282,9 +280,9 @@ def parse_arguments():
         help="Either include hard negatives or not."
     )
     parser.add_argument(
-        "--is_pretraining",
+        "--is_contrastive",
         action="store_true",
-        help="Either the mode is pretraining or not."
+        help="Either the pretraining mode is contrastive or not."
     )
     parser.add_argument(
         "--logging_steps",
@@ -310,11 +308,34 @@ def main():
     # Modified: for handling unsued parameters
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
     accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
+
+    # Modified: change the order
+    # Handle the repository creation
+    if accelerator.is_main_process:
+        if args.push_to_hub:
+            if args.hub_model_id is None:
+                repo_name = get_full_repo_name(Path(args.output_dir).name, token=args.hub_token)
+            else:
+                repo_name = args.hub_model_id
+            repo = Repository(args.output_dir, clone_from=repo_name)
+        elif args.output_dir is not None:
+            # Modified: output_dir is concatanated with datetime and command line arguments are also saved
+            inter_path = path_adder(args)
+            inter_path += datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
+            args.output_dir = os.path.join(args.output_dir, inter_path)
+            os.makedirs(args.output_dir, exist_ok=True)
+            save_args(args)
+
     # Make one log on every process with the configuration for debugging.
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO,
+        # Modified
+        handlers=[
+            logging.FileHandler(os.path.join(args.output_dir, "loginfo.log")),
+            logging.StreamHandler()
+        ]
     )
     logger.info(accelerator.state)
 
@@ -332,20 +353,6 @@ def main():
     if args.seed is not None:
         set_seed(args.seed)
 
-    # Handle the repository creation
-    if accelerator.is_main_process:
-        if args.push_to_hub:
-            if args.hub_model_id is None:
-                repo_name = get_full_repo_name(Path(args.output_dir).name, token=args.hub_token)
-            else:
-                repo_name = args.hub_model_id
-            repo = Repository(args.output_dir, clone_from=repo_name)
-        elif args.output_dir is not None:
-            # Modified: output_dir is concatanated with datetime and command line arguments are also saved
-            # TODO: consider also adding model name to the path
-            args.output_dir = os.path.join(args.output_dir, datetime.now().strftime("%Y_%m_%d-%H_%M_%S"))
-            os.makedirs(args.output_dir, exist_ok=True)
-            save_args(args)
     accelerator.wait_for_everyone()
 
     # Get the datasets: you can either provide your own CSV/JSON/TXT training and evaluation files (see below)
@@ -417,7 +424,7 @@ def main():
     # First we tokenize all the texts.
     # Modified: Tokenization pipeline
 
-    if not args.is_pretraining:
+    if not args.is_contrastive:
         article_numbers = 1
     elif args.use_hard_negatives:
         article_numbers = 4
@@ -425,7 +432,7 @@ def main():
         article_numbers = 2
         # remove hard negatives
         raw_datasets = raw_datasets.remove_columns(['article_3', 'article_4'])
-    logging.info("article number is: %s ", article_numbers)
+    logger.info("article number is: %s ", article_numbers)
 
     with accelerator.main_process_first():
         tokenized_datasets = raw_datasets.map(
@@ -511,8 +518,12 @@ def main():
     progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
     completed_steps = 0
 
+    # Modified for checkpoint saving:
+    min_loss = float("inf")
+
     for epoch in range(args.num_train_epochs):
         model.train()
+        # Modified for running_loss
         running_loss = 0.0
         for step, batch in enumerate(train_dataloader):
             # Modified for ContrastiveModel
@@ -525,10 +536,11 @@ def main():
                 optimizer.zero_grad()
                 progress_bar.update(1)
                 completed_steps += 1
-            # TODO: change
+                # Modified
                 running_loss += loss.item()
+                # TODO: change
             if step % args.logging_steps == args.logging_steps - 1:
-                logger.info(f"epoch: {epoch}, step {step}:, loss: {loss/args.logging_steps}")
+                logger.info(f"epoch: {epoch}, step {step+1}:, loss: {loss/args.logging_steps}")
                 running_loss = 0.0
             if completed_steps >= args.max_train_steps:
                 break
@@ -549,28 +561,31 @@ def main():
 
         logger.info(f"epoch {epoch}: loss: {total_loss}")
 
-        if args.push_to_hub and epoch < args.num_train_epochs - 1:
+        # Modified: changed for checkpoint saving
+        if total_loss < min_loss:
+            min_loss = total_loss
             accelerator.wait_for_everyone()
             unwrapped_model = accelerator.unwrap_model(model)
             # Modified
             accelerator.save(obj=unwrapped_model.hierarchical_model.state_dict(),
                              f=args.output_dir + "/model.pth")
+            # TODO: change later to save only one time
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(args.output_dir)
                 repo.push_to_hub(
                     commit_message=f"Training in progress epoch {epoch}", blocking=False, auto_lfs_prune=True
                 )
 
-    if args.output_dir is not None:
-        accelerator.wait_for_everyone()
-        unwrapped_model = accelerator.unwrap_model(model)
-        # Modified
-        accelerator.save(obj=unwrapped_model.hierarchical_model.state_dict(),
-                         f=args.output_dir + "/model.pth")
-        if accelerator.is_main_process:
-            tokenizer.save_pretrained(args.output_dir)
-            if args.push_to_hub:
-                repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
+    # if args.output_dir is not None:
+    #     accelerator.wait_for_everyone()
+    #     unwrapped_model = accelerator.unwrap_model(model)
+    #     # Modified
+    #     accelerator.save(obj=unwrapped_model.hierarchical_model.state_dict(),
+    #                      f=args.output_dir + "/model.pth")
+    #     if accelerator.is_main_process:
+    #         tokenizer.save_pretrained(args.output_dir)
+    #         if args.push_to_hub:
+    #             repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
 
 
 if __name__ == "__main__":
