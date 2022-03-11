@@ -24,6 +24,7 @@ from pathlib import Path
 
 import datasets
 from datasets import load_from_disk, load_metric
+from tokenizers import Tokenizer
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
@@ -35,11 +36,14 @@ from transformers import (
     AutoTokenizer,
     get_scheduler,
     set_seed,
+    DataCollatorWithPadding,
+    AutoModelForSequenceClassification,
+    AutoConfig
 )
 from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
 
-from utils import custom_tokenize, load_args, save_args, path_adder
+from utils import custom_tokenize, load_args, save_args, path_adder, preprocess_function
 from data_collator import CustomDataCollator
 from models import HierarchicalClassificationModel
 
@@ -181,6 +185,13 @@ def parse_args():
         default=500,
         help="Frequency of logging mini-batch loss .",
     )
+    parser.add_argument(
+        "--custom_model",
+        type=str,
+        help="If a custom model is to be used, the model type has to be specified.",
+        default=None,
+        choices=["hierarchical"]
+    )
     args = parser.parse_args()
 
     # Sanity checks
@@ -198,8 +209,8 @@ def main():
     args = parse_args()
 
     # Argments from pretraining
-    pretrained_args = load_args(os.path.join(args.pretrained_dir, "args.json"))
-    # TODO: eliminate/ decide on args
+    if args.custom_model is not None:
+        pretrained_args = load_args(os.path.join(args.pretrained_dir, "args.json"))
 
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
@@ -215,12 +226,17 @@ def main():
             repo = Repository(args.output_dir, clone_from=repo_name)
         elif args.output_dir is not None:
             # Modified: output_dir is concatanated with datetime and command line arguments are also saved
-            inter_path = path_adder(pretrained_args, finetuning=True)
+            # TODO: refactor
+            if args.custom_model is not None:
+                inter_path = path_adder(pretrained_args, finetuning=True, custom_model=True)
+            else:
+                inter_path = path_adder(args, finetuning=True)
             inter_path += datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
             args.output_dir = os.path.join(args.output_dir, inter_path)
             os.makedirs(args.output_dir, exist_ok=True)
             save_args(args)
-            save_args(pretrained_args, args_path=args.output_dir, pretrained=True)
+            if args.custom_model is not None:
+                save_args(pretrained_args, args_path=args.output_dir, pretrained=True)
 
     # Make one log on every process with the configuration for debugging.
     logging.basicConfig(
@@ -265,33 +281,44 @@ def main():
     # Load pretrained model and tokenizer
     # TODO: change to classification arguments
     # TODO: additional condition for model type
+    tokenizer = AutoTokenizer.from_pretrained(args.pretrained_dir,
+                                              use_fast=not args.use_slow_tokenizer)
+    # tokenizer.add_tokens(["[DCLS]"])
 
-    tokenizer = AutoTokenizer.from_pretrained(pretrained_args.model_name_or_path, use_fast=not args.use_slow_tokenizer)
-
-    # Modified: Model is set to be ContrastiveModel
-    # Modified: Add token as document level [CLS]
-    tokenizer.add_tokens(["[DCLS]"])
-    # Modified. Hierarchical Classification Model
-    # TODO: additional condition for model type
-    model = HierarchicalClassificationModel(c_args=args,
-                                            args=pretrained_args,
-                                            tokenizer=tokenizer,
-                                            num_labels=num_labels)
-
-    # Modified: Default for finetuning
-    ARTICLE_NUMBERS = 1
-
-    # TODO: additional condition for model type
-    with accelerator.main_process_first():
-        # Modified
-        raw_datasets = raw_datasets.rename_column("text", "article_1")
-        processed_datasets = raw_datasets.map(
-            custom_tokenize,
-            fn_kwargs={"tokenizer": tokenizer, "args": args, "article_numbers": ARTICLE_NUMBERS},
-            num_proc=args.preprocessing_num_workers,
-            load_from_cache_file=not args.overwrite_cache,
-            desc="Running tokenizer on dataset",
+    if args.custom_model == "hierarchical":
+        model = HierarchicalClassificationModel(c_args=args,
+                                                args=pretrained_args,
+                                                tokenizer=tokenizer,
+                                                num_labels=num_labels)
+    else:
+        config = AutoConfig.from_pretrained(args.pretrained_dir, num_labels=num_labels)
+        model = AutoModelForSequenceClassification.from_pretrained(
+            args.pretrained_dir,
+            config=config,
         )
+
+    if args.custom_model is not None:
+        with accelerator.main_process_first():
+            # Modified
+            ARTICLE_NUMBERS = 1
+            raw_datasets = raw_datasets.rename_column("text", "article_1")
+            processed_datasets = raw_datasets.map(
+                custom_tokenize,
+                fn_kwargs={"tokenizer": tokenizer, "args": args, "article_numbers": ARTICLE_NUMBERS},
+                num_proc=args.preprocessing_num_workers,
+                load_from_cache_file=not args.overwrite_cache,
+                desc="Running tokenizer on dataset",
+            )
+    else:
+        with accelerator.main_process_first():
+            processed_datasets = raw_datasets.map(
+                preprocess_function,
+                fn_kwargs={"tokenizer": tokenizer},
+                batched=True,
+                num_proc=args.preprocessing_num_workers,
+                remove_columns=raw_datasets["train"].column_names,
+                desc="Running tokenizer on dataset",
+            )
 
     # Modified
     train_dataset = processed_datasets["train"]
@@ -301,12 +328,14 @@ def main():
     for index in random.sample(range(len(train_dataset)), 3):
         logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
 
-    # TODO: additional condition for model type
-    # Modified
-    data_collator = CustomDataCollator(tokenizer=tokenizer,
-                                       max_sentence_len=pretrained_args.max_seq_length if args.max_seq_length is None else args.max_seq_length,
-                                       max_document_len=pretrained_args.max_document_length if args.max_document_length is None else args.max_document_length,
-                                       article_numbers=ARTICLE_NUMBERS)
+    if args.custom_model is not None:
+        # Modified
+        data_collator = CustomDataCollator(tokenizer=tokenizer,
+                                           max_sentence_len=pretrained_args.max_seq_length if args.max_seq_length is None else args.max_seq_length,
+                                           max_document_len=pretrained_args.max_document_length if args.max_document_length is None else args.max_document_length,
+                                           article_numbers=ARTICLE_NUMBERS)
+    else:
+        data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=(8 if accelerator.use_fp16 else None))
 
     train_dataloader = DataLoader(
         train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
@@ -413,8 +442,12 @@ def main():
             accelerator.wait_for_everyone()
             unwrapped_model = accelerator.unwrap_model(model)
             # Modified
-            accelerator.save(obj=unwrapped_model.state_dict(),
-                             f=args.output_dir + "/model.pth")
+            # TODO: change for other models
+            if args.custom_model is not None:
+                accelerator.save(obj=unwrapped_model.state_dict(),
+                                 f=args.output_dir + "/model.pth")
+            else:
+                unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
             logger.info(f"model after epoch {epoch} is saved")
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(args.output_dir)

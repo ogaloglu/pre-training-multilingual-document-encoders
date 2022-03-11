@@ -32,11 +32,15 @@ from huggingface_hub import Repository
 from transformers import (
     AutoTokenizer,
     set_seed,
+    AutoConfig,
+    AutoModelForSequenceClassification,
+    DataCollatorWithPadding
 )
+
 from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
 
-from utils import custom_tokenize, load_args, path_adder
+from utils import custom_tokenize, load_args, path_adder, preprocess_function
 from data_collator import CustomDataCollator
 from models import HierarchicalClassificationModel
 
@@ -108,6 +112,13 @@ def parse_args():
         help="The maximum number of sentences each document can have. Documents are either truncated or"
              "padded if their length is different.",
     )
+    parser.add_argument(
+        "--custom_model",
+        type=str,
+        help="If a custom model is to be used, the model type has to be specified.",
+        default=None,
+        choices=["hierarchical"]
+    )
     args = parser.parse_args()
 
     # Sanity checks
@@ -125,7 +136,8 @@ def main():
     args = parse_args()
 
     # Argments from pretraining
-    pretrained_args = load_args(os.path.join(args.finetuned_dir, "pretrained_args.json"))
+    if args.custom_model is not None:
+        pretrained_args = load_args(os.path.join(args.finetuned_dir, "pretrained_args.json"))
     finetuned_args = load_args(os.path.join(args.finetuned_dir, "args.json"))
 
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
@@ -142,11 +154,14 @@ def main():
             repo = Repository(args.output_dir, clone_from=repo_name)
         elif args.output_dir is not None:
             # Modified: output_dir is concatanated with datetime and command line arguments are also saved
-            inter_path = path_adder(pretrained_args, finetuning=True)
+            # TODO: refactor
+            if args.custom_model is not None:
+                inter_path = path_adder(pretrained_args, finetuning=True, custom_model=True)
+            else:
+                inter_path = path_adder(args, finetuning=True)
             inter_path += datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
             args.output_dir = os.path.join(args.output_dir, inter_path)
             os.makedirs(args.output_dir, exist_ok=True)
-            # save_args(args)
 
     # Make one log on every process with the configuration for debugging.
     logging.basicConfig(
@@ -186,27 +201,40 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(args.finetuned_dir, use_fast=not args.use_slow_tokenizer)
 
-    # Modified. Hierarchical Classification Model
-    # TODO: additional condition for model type
-    model = HierarchicalClassificationModel(c_args=finetuned_args,
-                                            args=pretrained_args,
-                                            tokenizer=tokenizer,
-                                            num_labels=num_labels)
-    model.load_state_dict(torch.load(os.path.join(args.finetuned_dir, "model.pth")))
-    # Modified: Default for finetuning
-    ARTICLE_NUMBERS = 1
-
-    # TODO: additional condition for model type
-    with accelerator.main_process_first():
-        # Modified
-        test_dataset = test_dataset.rename_column("text", "article_1")
-        test_dataset = test_dataset.map(
-            custom_tokenize,
-            fn_kwargs={"tokenizer": tokenizer, "args": args, "article_numbers": ARTICLE_NUMBERS},
-            num_proc=args.preprocessing_num_workers,
-            load_from_cache_file=not args.overwrite_cache,
-            desc="Running tokenizer on dataset",
+    if args.custom_model == "hierarchical":
+        model = HierarchicalClassificationModel(c_args=finetuned_args,
+                                                args=pretrained_args,
+                                                tokenizer=tokenizer,
+                                                num_labels=num_labels)
+        model.load_state_dict(torch.load(os.path.join(args.finetuned_dir, "model.pth")))
+    else:
+        config = AutoConfig.from_pretrained(args.finetuned_dir, num_labels=num_labels)
+        model = AutoModelForSequenceClassification.from_pretrained(
+            args.finetuned_dir,
+            config=config,
         )
+
+    if args.custom_model is not None:
+        with accelerator.main_process_first():
+            # Modified
+            test_dataset = test_dataset.rename_column("text", "article_1")
+            ARTICLE_NUMBERS = 1
+            test_dataset = test_dataset.map(
+                custom_tokenize,
+                fn_kwargs={"tokenizer": tokenizer, "args": args, "article_numbers": ARTICLE_NUMBERS},
+                num_proc=args.preprocessing_num_workers,
+                load_from_cache_file=not args.overwrite_cache,
+                desc="Running tokenizer on dataset",
+            )
+        with accelerator.main_process_first():
+            test_dataset = test_dataset.map(
+                preprocess_function,
+                fn_kwargs={"tokenizer": tokenizer},
+                batched=True,
+                num_proc=args.preprocessing_num_workers,
+                remove_columns=test_dataset.column_names,
+                desc="Running tokenizer on dataset",
+            )
 
     # Modified
 
@@ -214,12 +242,13 @@ def main():
     for index in random.sample(range(len(test_dataset)), 3):
         logger.info(f"Sample {index} of the training set: {test_dataset[index]}.")
 
-    # TODO: additional condition for model type
-    # Modified
-    data_collator = CustomDataCollator(tokenizer=tokenizer,
-                                       max_sentence_len=pretrained_args.max_seq_length if args.max_seq_length is None else args.max_seq_length,
-                                       max_document_len=pretrained_args.max_document_length if args.max_document_length is None else args.max_document_length,
-                                       article_numbers=ARTICLE_NUMBERS)
+    if args.custom_model is not None:
+        data_collator = CustomDataCollator(tokenizer=tokenizer,
+                                           max_sentence_len=pretrained_args.max_seq_length if args.max_seq_length is None else args.max_seq_length,
+                                           max_document_len=pretrained_args.max_document_length if args.max_document_length is None else args.max_document_length,
+                                           article_numbers=ARTICLE_NUMBERS)
+    else:
+        data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=(8 if accelerator.use_fp16 else None))
 
     test_dataloader = DataLoader(test_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
 

@@ -96,10 +96,19 @@ def load_args(args_path: str) -> namedtuple:
     return args
 
 
-def path_adder(args: argparse.Namespace, finetuning=False) -> str:
-
+def path_adder(args: argparse.Namespace, finetuning: bool = False, custom_model: bool = False) -> str:
+    # TODO: has to be refactored.
     if not finetuning:
         i_path = f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.frozen else ''}_{args.num_train_epochs}__"
-    else:
+    elif finetuning and custom_model:
         i_path = f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}__"
+    else:
+        i_path = f"{MODEL_MAPPING[args.pretrained_dir]}__"
     return i_path
+
+
+def preprocess_function(examples, tokenizer):
+    # Tokenization function for the AutoModels
+    result = tokenizer(examples["text"], padding=True, truncation=True)
+    result["labels"] = examples["labels"]
+    return result
