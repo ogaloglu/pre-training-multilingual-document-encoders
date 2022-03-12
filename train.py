@@ -26,6 +26,7 @@ import logging
 import math
 import os
 import random
+from random import randint
 from datetime import datetime
 from pathlib import Path
 
@@ -294,7 +295,13 @@ def parse_arguments():
         "--logging_steps",
         type=int,
         default=500,
-        help="Frequency of logging mini-batch loss .",
+        help="Frequency of logging mini-batch loss.",
+    )
+    parser.add_argument(
+        "--inspect",
+        action="store_true",
+        help="If True, validation loss is checked in each logging step"
+             "(rather than only after each epoch)."
     )
     args = parser.parse_args()
     # Sanity checks
@@ -544,10 +551,25 @@ def main():
                 completed_steps += 1
                 # Modified
                 running_loss += loss.item()
-                # TODO: change
             if step % args.logging_steps == args.logging_steps - 1:
-                logger.info(f"epoch: {epoch}, step {step+1}:, loss: {loss/args.logging_steps}")
-                running_loss = 0.0
+                #logger.info(f"epoch: {epoch}, step {step+1}:, loss: {running_loss/args.logging_steps}")
+                #running_loss = 0.0
+                # TODO change
+                if args.inspect:
+                    model.eval()
+                    losses = []
+                    for step, batch in enumerate(eval_dataloader):
+                        with torch.no_grad():
+                            loss = model(**batch)
+                        losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))
+
+                    losses = torch.cat(losses)
+                    losses = losses[: len(eval_dataset)]
+                    total_loss = torch.mean(losses)
+                    logger.info(f"epoch: {epoch}, step {step+1}:, train_loss: {running_loss/args.logging_steps}, val_loss: {total_loss}")
+                    running_loss = 0.0
+                    model.train()
+                # TODO change
             if completed_steps >= args.max_train_steps:
                 break
         model.eval()
