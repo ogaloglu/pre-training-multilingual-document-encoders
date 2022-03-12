@@ -101,7 +101,7 @@ def path_adder(args: argparse.Namespace, finetuning: bool = False, custom_model:
     if not finetuning:
         i_path = f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.frozen else ''}_{args.num_train_epochs}__"
     elif finetuning and custom_model:
-        i_path = f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}__"
+        i_path = f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}{'_init' if args.custom_from_scratch else ''}__"
     else:
         i_path = f"{MODEL_MAPPING[args.pretrained_dir]}__"
     return i_path

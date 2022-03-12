@@ -192,6 +192,11 @@ def parse_args():
         default=None,
         choices=["hierarchical"]
     )
+    parser.add_argument(
+        "--custom_from_scratch",
+        action="store_true",
+        help="If True, then the custom model is not initilazed from the previously pretrained model."
+    )
     args = parser.parse_args()
 
     # Sanity checks
@@ -418,7 +423,7 @@ def main():
             # TODO: change
                 running_loss += loss.item()
             if step % args.logging_steps == args.logging_steps - 1:
-                logger.info(f"epoch: {epoch}, step {step+1}:, loss: {loss/args.logging_steps}")
+                logger.info(f"epoch: {epoch}, step {step+1}:, loss: {running_loss/args.logging_steps}")
                 running_loss = 0.0
             if completed_steps >= args.max_train_steps:
                 break
