@@ -9,11 +9,22 @@ from transformers.modeling_outputs import SequenceClassifierOutput
 from utils import cos_sim
 
 
-# TODO: BertModel specific
-class LowerEncoder(BertPreTrainedModel):
+class LowerXLMREncoder(RobertaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
-        # TODO: BertModel specific
+        self.roberta = XLMRobertaModel(config)
+        # TODO: change to post_init()
+        self.init_weights()
+
+    def forward(self, input_ids, token_type_ids=None, attention_mask=None):
+        model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+        output = model_output['last_hidden_state'][:, 0, :]  # (batch_size, hidden_size)
+        return output
+
+
+class LowerBertEncoder(BertPreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
         self.bert = BertModel(config)
         # TODO: change to post_init()
         self.init_weights()
@@ -30,8 +41,7 @@ class HiearchicalModel(nn.Module):
         super().__init__()
         # TODO: from pretrained or config
         self.lower_config = AutoConfig.from_pretrained(args.model_name_or_path)
-        self.lower_model = LowerEncoder.from_pretrained(args.model_name_or_path)
-        # Modified: move dropout
+        self.lower_model = lower_selector(self.lower_config.model_type, args.model_name_or_path)
         self.lower_dropout = nn.Dropout(args.lower_dropout)
 
         self.tokenizer = tokenizer
@@ -89,6 +99,15 @@ class HiearchicalModel(nn.Module):
     def _freeze_lower(self):
         for param in self.lower_model.base_model.parameters():
             param.requires_grad = False
+    
+    def lower_selector(self, model_name):
+        if self.lower_config.model_type == "xlm-roberta":
+            lower_model = LowerXLMREncoder.from_pretrained(model_name)
+        elif self.lower_config.model_type == "bert":
+            lower_model = LowerBertEncoder.from_pretrained(model_name)
+        else:
+            raise NotImplementedError("Respective model type is not supported.")
+        return lower_model
 
 
 class ContrastiveModel(nn.Module):
