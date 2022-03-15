@@ -10,7 +10,9 @@ from nltk import sent_tokenize
 
 
 MODEL_MAPPING = {
-    "bert-base-multilingual-cased": "mbert"
+    "bert-base-multilingual-cased": "mbert",
+    "xlm-roberta-base": "xlmr",
+    "sentence-transformers/LaBSE" : "labse"
 }
 
 
