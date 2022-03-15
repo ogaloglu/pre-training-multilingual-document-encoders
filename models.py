@@ -8,7 +8,7 @@ from transformers.modeling_outputs import SequenceClassifierOutput
 
 from utils import cos_sim
 
-
+# TODO: maybe inherit nn.Module?
 class LowerXLMREncoder(RobertaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -22,6 +22,7 @@ class LowerXLMREncoder(RobertaPreTrainedModel):
         return output
 
 
+# TODO: maybe inherit nn.Module?
 class LowerBertEncoder(BertPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -41,7 +42,7 @@ class HiearchicalModel(nn.Module):
         super().__init__()
         # TODO: from pretrained or config
         self.lower_config = AutoConfig.from_pretrained(args.model_name_or_path)
-        self.lower_model = lower_selector(self.lower_config.model_type, args.model_name_or_path)
+        self.lower_model = self.lower_selector(args.model_name_or_path)
         self.lower_dropout = nn.Dropout(args.lower_dropout)
 
         self.tokenizer = tokenizer
