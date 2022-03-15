@@ -64,9 +64,8 @@ class CustomDataCollator:
         Returns:
            (tuple): Sentences and attention masks of the respective document after sentence-level padding.
         """
-        sentences = [sentence + [self.tokenizer.convert_tokens_to_ids("[PAD]")] * (sen_len - len(sentence))
+        sentences = [sentence + [self.tokenizer.convert_tokens_to_ids(self.tokenizer.pad_token)] * (sen_len - len(sentence))
                      for sentence in feature[f"article_{article_number}"]]
-        # TODO: check for attention_mask ID
         masks = [sentence + [0] * (sen_len - len(sentence)) for sentence in feature[f"mask_{article_number}"]]
         return sentences, masks
 
@@ -84,7 +83,7 @@ class CustomDataCollator:
             doc_len -= 1
 
         mask_padding_array = [0 for i0 in range(len(masks[0]))]
-        sentence_padding_array = [self.tokenizer.convert_tokens_to_ids("[PAD]") for i0 in range(len(sentences[0]))]
+        sentence_padding_array = [self.tokenizer.convert_tokens_to_ids(self.tokenizer.pad_token) for i0 in range(len(sentences[0]))]
 
         if len(sentences) < doc_len:
             sentences += [sentence_padding_array for difference in range(doc_len - len(sentences))]
