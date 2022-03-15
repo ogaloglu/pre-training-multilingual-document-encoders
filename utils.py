@@ -45,11 +45,10 @@ def custom_tokenize(example, tokenizer, args: argparse.Namespace, article_number
     def tokenize_helper(article, tokenizer, args: argparse.Namespace):
         sentences = [tokenizer.encode(sentence, add_special_tokens=False) for sentence in sent_tokenize(article)]
         sentences = [sentence[:args.max_seq_length - 2] for sentence in sentences]
-        sentences = [[tokenizer.convert_tokens_to_ids("[CLS]")] + sentence +
-                     [tokenizer.convert_tokens_to_ids("[SEP]")] for sentence in sentences]
+        sentences = [[tokenizer.convert_tokens_to_ids(tokenizer.cls_token)] + sentence +
+                     [tokenizer.convert_tokens_to_ids(tokenizer.sep_token)] for sentence in sentences]
 
         sentence_lengths = [len(sentence) for sentence in sentences]
-        # TODO: check for attention_mask ID
         mask = [[1]*sen_len for sen_len in sentence_lengths]
 
         return sentences, mask
@@ -101,7 +100,7 @@ def load_args(args_path: str) -> namedtuple:
 def path_adder(args: argparse.Namespace, finetuning: bool = False, custom_model: bool = False) -> str:
     # TODO: has to be refactored.
     if not finetuning:
-        i_path = f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.frozen else ''}_{args.num_train_epochs}__"
+        i_path = f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.frozen else ''}{'_hard' if args.use_hard_negatives else ''}_{args.num_train_epochs}__"
     elif finetuning and custom_model:
         i_path = f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}{'_init' if args.custom_from_scratch else ''}__"
     else:
