@@ -3,7 +3,7 @@ import os
 
 import torch
 from torch import nn
-from transformers import BertPreTrainedModel, AutoConfig, RobertaPreTrainedModel, BertModel
+from transformers import BertPreTrainedModel, AutoConfig, RobertaPreTrainedModel, BertModel, XLMRobertaModel
 from transformers.modeling_outputs import SequenceClassifierOutput
 
 from utils import cos_sim
