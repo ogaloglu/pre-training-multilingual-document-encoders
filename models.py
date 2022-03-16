@@ -16,7 +16,7 @@ class Pooler(nn.Module):
         self.activation = nn.Tanh()
 
     def forward(self, hidden_states):
-        pooled_output = self.dense(hidden_state)
+        pooled_output = self.dense(hidden_states)
         pooled_output = self.activation(pooled_output)
         return pooled_output
 
