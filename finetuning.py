@@ -344,10 +344,12 @@ def main():
 
     if args.custom_model in ("hierarchical", "sliding_window"):
         # Modified
+        ARTICLE_NUMBERS = 1
         data_collator = CustomDataCollator(tokenizer=tokenizer,
                                            max_sentence_len=pretrained_args.max_seq_length if args.max_seq_length is None else args.max_seq_length,
                                            max_document_len=pretrained_args.max_document_length if args.max_document_length is None else args.max_document_length,
-                                           article_numbers=ARTICLE_NUMBERS)
+                                           article_numbers=ARTICLE_NUMBERS,
+                                           consider_dcls=True if arg.scustom_model == hierarchical else False)
     else:
         data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=(8 if accelerator.use_fp16 else None))
 
