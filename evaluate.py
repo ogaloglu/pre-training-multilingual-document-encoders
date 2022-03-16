@@ -40,7 +40,7 @@ from transformers import (
 from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
 
-from utils import custom_tokenize, load_args, path_adder, preprocess_function
+from utils import custom_tokenize, load_args, path_adder, preprocess_function, sliding_tokenize
 from data_collator import CustomDataCollator
 from models import HierarchicalClassificationModel
 
@@ -201,7 +201,7 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(args.finetuned_dir, use_fast=not args.use_slow_tokenizer)
 
-    if args.custom_model == in ("hierarchical", "sliding_window"):
+    if args.custom_model in ("hierarchical", "sliding_window"):
         model = HierarchicalClassificationModel(c_args=finetuned_args,
                                                 args=pretrained_args,
                                                 tokenizer=tokenizer,
@@ -258,7 +258,7 @@ def main():
                                            max_sentence_len=pretrained_args.max_seq_length if args.max_seq_length is None else args.max_seq_length,
                                            max_document_len=pretrained_args.max_document_length if args.max_document_length is None else args.max_document_length,
                                            article_numbers=ARTICLE_NUMBERS,
-                                           consider_dcls=True if arg.scustom_model == hierarchical else False)
+                                           consider_dcls=True if args.custom_model == "hierarchical" else False)
     else:
         data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=(8 if accelerator.use_fp16 else None))
 

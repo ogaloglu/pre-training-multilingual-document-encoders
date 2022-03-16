@@ -26,14 +26,14 @@ class LowerXLMREncoder(RobertaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.roberta = XLMRobertaModel(config)
-        self.pooler = Pooler(config)
+        #self.pooler = Pooler(config)
         # TODO: change to post_init()
         self.init_weights()
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
         model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None)
         output = model_output['last_hidden_state'][:, 0]  # (batch_size, hidden_size)
-        output = self.pooler(output)
+        #output = self.pooler(output)
         return output
 
 
@@ -41,14 +41,14 @@ class LowerBertEncoder(BertPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.bert = BertModel(config)
-        self.pooler = Pooler(config)
+        #self.pooler = Pooler(config)
         # TODO: change to post_init()
         self.init_weights()
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
         model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None)
         output = model_output['last_hidden_state'][:, 0]  # (batch_size, hidden_size)
-        output = self.pooler(output)
+        #output = self.pooler(output)
         return output
 
 
@@ -65,7 +65,6 @@ class HiearchicalBaseModel(nn.Module):
         if args.frozen:
             self._freeze_lower()
     
-
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
         input_ids = input_ids.permute(1, 0, 2)  # (sentences, batch_size, words)
         attention_mask = attention_mask.permute(1, 0, 2)
@@ -228,7 +227,7 @@ class HierarchicalClassificationModel(nn.Module):
         self.classifier = nn.Linear(self.hierarchical_model.lower_config.hidden_size, self.num_labels)
 
     def forward(self, article_1, mask_1, labels):
-        output = self.hierarchical_model(input_ids=article_1, attention_mask=mask_1) # (batch_size, hidden_size)
+        output = self.hierarchical_model(input_ids=article_1, attention_mask=mask_1)  # (batch_size, hidden_size)
 
         output = self.dropout(output)
         logits = self.classifier(output)

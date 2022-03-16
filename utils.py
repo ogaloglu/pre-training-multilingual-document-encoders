@@ -13,7 +13,7 @@ from datasets import arrow_dataset
 MODEL_MAPPING = {
     "bert-base-multilingual-cased": "mbert",
     "xlm-roberta-base": "xlmr",
-    "sentence-transformers/LaBSE" : "labse"
+    "sentence-transformers/LaBSE": "labse"
 }
 
 
@@ -119,11 +119,11 @@ def preprocess_function(examples: arrow_dataset.Batch, tokenizer):
 def sliding_tokenize(example: arrow_dataset.Example, args: argparse.Namespace, tokenizer):
     # Tokenization function for sliding window models
     sentences = tokenizer(example["text"], 
-                max_length=args.max_seq_length, 
-                truncation=True, 
-                stride=34,  # TODO: add to args
-                return_overflowing_tokens=True, 
-                padding=True)
+                          max_length=args.max_seq_length, 
+                          truncation=True, 
+                          stride=34,  # TODO: add to args
+                          return_overflowing_tokens=True, 
+                          padding=True)
     return {
         "article_1": sentences["input_ids"],
         "mask_1": sentences["attention_mask"],
