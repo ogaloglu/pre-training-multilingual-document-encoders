@@ -33,7 +33,7 @@ class LowerXLMREncoder(RobertaPreTrainedModel):
     # TODO: check token_type_ids
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
         model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None)
-        output = model_output['last_hidden_state'][:, 0, :]  # (batch_size, hidden_size)
+        output = model_output['last_hidden_state'][:, 0]  # (batch_size, hidden_size)
         output = self.pooler(output)
         return output
 
@@ -50,7 +50,7 @@ class LowerBertEncoder(BertPreTrainedModel):
     # TODO: check token_type_ids
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
         model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None)
-        output = model_output['last_hidden_state'][:, 0, :]  # (batch_size, hidden_size)
+        output = model_output['last_hidden_state'][:, 0]  # (batch_size, hidden_size)
         output = self.pooler(output)
         return output
 
@@ -159,7 +159,7 @@ class HiearchicalModel(nn.Module):
             lower_output = self.lower_model.base_model.embeddings(inputs_embeds=lower_output)
 
         upper_output = self.transformer_encoder(lower_output)  # (batch_size, sentences, hidden_size)
-        final_output = upper_output[:, 0, :]  # (batch_size, hidden_size)
+        final_output = upper_output[:, 0]  # (batch_size, hidden_size)
 
         return final_output
 
