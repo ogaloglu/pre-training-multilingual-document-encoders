@@ -8,11 +8,25 @@ from transformers.modeling_outputs import SequenceClassifierOutput
 
 from utils import cos_sim
 
+
+class Pooler(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.activation = nn.Tanh()
+
+    def forward(self, hidden_states):
+        pooled_output = self.dense(hidden_state)
+        pooled_output = self.activation(pooled_output)
+        return pooled_output
+
+
 # TODO: maybe inherit nn.Module?
 class LowerXLMREncoder(RobertaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.roberta = XLMRobertaModel(config)
+        self.pooler = Pooler(config)
         # TODO: change to post_init()
         self.init_weights()
 
@@ -20,6 +34,7 @@ class LowerXLMREncoder(RobertaPreTrainedModel):
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
         model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None)
         output = model_output['last_hidden_state'][:, 0, :]  # (batch_size, hidden_size)
+        output = self.pooler(output)
         return output
 
 
@@ -28,6 +43,7 @@ class LowerBertEncoder(BertPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.bert = BertModel(config)
+        self.pooler = Pooler(config)
         # TODO: change to post_init()
         self.init_weights()
 
@@ -35,6 +51,7 @@ class LowerBertEncoder(BertPreTrainedModel):
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
         model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None)
         output = model_output['last_hidden_state'][:, 0, :]  # (batch_size, hidden_size)
+        output = self.pooler(output)
         return output
 
 
@@ -207,7 +224,7 @@ class HierarchicalClassificationModel(nn.Module):
             self.hierarchical_model = HiearchicalBaseModel(args, tokenizer)
         else:
             raise NotImplementedError("Respective model type is not supported.")
-            
+
         self.num_labels = num_labels
         if c_args.dropout is not None:
             self.dropout = nn.Dropout(c_args.dropout)
