@@ -30,7 +30,6 @@ class LowerXLMREncoder(RobertaPreTrainedModel):
         # TODO: change to post_init()
         self.init_weights()
 
-    # TODO: check token_type_ids
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
         model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None)
         output = model_output['last_hidden_state'][:, 0]  # (batch_size, hidden_size)
@@ -38,7 +37,6 @@ class LowerXLMREncoder(RobertaPreTrainedModel):
         return output
 
 
-# TODO: maybe inherit nn.Module?
 class LowerBertEncoder(BertPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -47,7 +45,6 @@ class LowerBertEncoder(BertPreTrainedModel):
         # TODO: change to post_init()
         self.init_weights()
 
-    # TODO: check token_type_ids
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
         model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None)
         output = model_output['last_hidden_state'][:, 0]  # (batch_size, hidden_size)
