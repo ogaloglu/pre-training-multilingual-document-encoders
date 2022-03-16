@@ -98,14 +98,14 @@ def load_args(args_path: str) -> namedtuple:
     return args
 
 
-def path_adder(args: argparse.Namespace, finetuning: bool = False, custom_model: bool = False) -> str:
+def path_adder(args: argparse.Namespace, finetuning: bool = False, custom_model: str = None) -> str:
     # TODO: has to be refactored.
     if not finetuning:
         i_path = f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.frozen else ''}{'_hard' if args.use_hard_negatives else ''}_{args.num_train_epochs}__"
-    elif finetuning and custom_model:
+    elif finetuning and custom_model == "hierarchical":
         i_path = f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}{'_init' if args.custom_from_scratch else ''}__"
     else:
-        i_path = f"{MODEL_MAPPING[args.pretrained_dir]}__"
+        i_path = f"{MODEL_MAPPING[args.pretrained_dir]}{'_sliding_window' if custom_model ==  'sliding_window' else ''}__"
     return i_path
 
 
