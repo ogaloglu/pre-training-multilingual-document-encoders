@@ -7,6 +7,7 @@ from collections import namedtuple
 import torch
 from torch import Tensor
 from nltk import sent_tokenize
+from datasets import arrow_dataset
 
 
 MODEL_MAPPING = {
@@ -40,9 +41,9 @@ def cos_sim(a: Tensor, b: Tensor):
     return torch.mm(a_norm, b_norm.transpose(0, 1))
 
 
-def custom_tokenize(example, tokenizer, args: argparse.Namespace, article_numbers: int):
+def custom_tokenize(example: arrow_dataset.Example, tokenizer, args: argparse.Namespace, article_numbers: int):
 
-    def tokenize_helper(article, tokenizer, args: argparse.Namespace):
+    def tokenize_helper(article: str, tokenizer, args: argparse.Namespace):
         sentences = [tokenizer.encode(sentence, add_special_tokens=False) for sentence in sent_tokenize(article)]
         sentences = [sentence[:args.max_seq_length - 2] for sentence in sentences]
         sentences = [[tokenizer.convert_tokens_to_ids(tokenizer.cls_token)] + sentence +
@@ -108,8 +109,23 @@ def path_adder(args: argparse.Namespace, finetuning: bool = False, custom_model:
     return i_path
 
 
-def preprocess_function(examples, tokenizer):
+def preprocess_function(examples: arrow_dataset.Batch, tokenizer):
     # Tokenization function for the AutoModels
     result = tokenizer(examples["text"], padding=True, truncation=True)
     result["labels"] = examples["labels"]
     return result
+
+
+def sliding_tokenize(example: arrow_dataset.Example, args: argparse.Namespace, tokenizer):
+    # Tokenization function for sliding window models
+    sentences = tokenizer(example["text"], 
+                max_length=args.max_seq_length, 
+                truncation=True, 
+                stride=34,  # TODO: add to args
+                return_overflowing_tokens=True, 
+                padding=True)
+    return {
+        "article_1": sentences["input_ids"],
+        "mask_1": sentences["attention_mask"],
+        "labels": example["labels"]
+    }
