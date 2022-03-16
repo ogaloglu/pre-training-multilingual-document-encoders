@@ -38,6 +38,53 @@ class LowerBertEncoder(BertPreTrainedModel):
         return output
 
 
+class HiearchicalBaseModel(nn.Module):
+    # To be used for sliding window approaches
+    def __init__(self, args, tokenizer, **kwargs):
+        super().__init__()
+        # TODO: from pretrained or config
+        self.lower_config = AutoConfig.from_pretrained(args.model_name_or_path)
+        self.lower_model = self.lower_selector(args.model_name_or_path)
+        self.lower_dropout = nn.Dropout(args.lower_dropout)
+        
+        # If True, freeze the lower encoder
+        if args.frozen:
+            self._freeze_lower()
+    
+
+    def forward(self, input_ids, token_type_ids=None, attention_mask=None):
+        input_ids = input_ids.permute(1, 0, 2)  # (sentences, batch_size, words)
+        attention_mask = attention_mask.permute(1, 0, 2)
+        lower_encoded = []
+
+        for i_i, a_m in zip(input_ids, attention_mask):
+            inter_output = self.lower_model(i_i, a_m)
+            inter_output = self.lower_dropout(inter_output)
+            lower_encoded.append(inter_output)
+
+        lower_output = torch.stack(lower_encoded)  # (sentences, batch_size, hidden_size)
+        lower_output = lower_output.permute(1, 0, 2)  # (batch_size, sentences, hidden_size)
+       
+        # Mean Pooling
+        final_output = torch.mean(lower_output, 1)  # (batch_size, hidden_size)
+
+        return final_output
+
+    def _freeze_lower(self):
+        for param in self.lower_model.base_model.parameters():
+            param.requires_grad = False
+        
+    def lower_selector(self, model_name):
+        if self.lower_config.model_type == "xlm-roberta":
+            lower_model = LowerXLMREncoder.from_pretrained(model_name)
+        elif self.lower_config.model_type == "bert":
+            lower_model = LowerBertEncoder.from_pretrained(model_name)
+        else:
+            raise NotImplementedError("Respective model type is not supported.")
+        return lower_model
+
+
+# TODO: Inherit from HiearchicalBaseModel, memory issues
 class HiearchicalModel(nn.Module):
     # self.lower_model.base_model is a reference to self.lower_model.bert
     def __init__(self, args, tokenizer, **kwargs):
@@ -160,7 +207,7 @@ class HierarchicalClassificationModel(nn.Module):
         self.classifier = nn.Linear(self.hierarchical_model.lower_config.hidden_size, self.num_labels)
 
     def forward(self, article_1, mask_1, labels):
-        output = self.hierarchical_model(input_ids=article_1, attention_mask=mask_1)
+        output = self.hierarchical_model(input_ids=article_1, attention_mask=mask_1) # (batch_size, hidden_size)
 
         output = self.dropout(output)
         logits = self.classifier(output)

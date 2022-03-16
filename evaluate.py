@@ -117,7 +117,7 @@ def parse_args():
         type=str,
         help="If a custom model is to be used, the model type has to be specified.",
         default=None,
-        choices=["hierarchical"]
+        choices=["hierarchical", "sliding_window"]
     )
     args = parser.parse_args()
 
@@ -136,7 +136,7 @@ def main():
     args = parse_args()
 
     # Argments from pretraining
-    if args.custom_model is not None:
+    if args.custom_model == "hierarchical":
         pretrained_args = load_args(os.path.join(args.finetuned_dir, "pretrained_args.json"))
     finetuned_args = load_args(os.path.join(args.finetuned_dir, "args.json"))
 
@@ -155,8 +155,8 @@ def main():
         elif args.output_dir is not None:
             # Modified: output_dir is concatanated with datetime and command line arguments are also saved
             # TODO: refactor
-            if args.custom_model is not None:
-                inter_path = path_adder(pretrained_args, finetuning=True, custom_model=True)
+            if args.custom_model == "hierarchical":
+                inter_path = path_adder(pretrained_args, finetuning=True, custom_model=args.custom_model)
             else:
                 inter_path = path_adder(args, finetuning=True)
             inter_path += datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
@@ -201,7 +201,7 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(args.finetuned_dir, use_fast=not args.use_slow_tokenizer)
 
-    if args.custom_model == "hierarchical":
+    if args.custom_model == in ("hierarchical", "sliding_window"):
         model = HierarchicalClassificationModel(c_args=finetuned_args,
                                                 args=pretrained_args,
                                                 tokenizer=tokenizer,
@@ -214,7 +214,7 @@ def main():
             config=config,
         )
 
-    if args.custom_model is not None:
+    if args.custom_model == "hierarchical":
         with accelerator.main_process_first():
             # Modified
             test_dataset = test_dataset.rename_column("text", "article_1")
@@ -226,6 +226,16 @@ def main():
                 load_from_cache_file=not args.overwrite_cache,
                 desc="Running tokenizer on dataset",
             )
+    elif args.custom_model == "sliding_window":
+         with accelerator.main_process_first():
+            test_dataset = test_dataset.map(
+                sliding_tokenize,
+                fn_kwargs={"tokenizer": tokenizer, "args": args},
+                num_proc=args.preprocessing_num_workers,
+                remove_columns=test_dataset.column_names,
+                desc="Running tokenizer on dataset",
+            )       
+    else:
         with accelerator.main_process_first():
             test_dataset = test_dataset.map(
                 preprocess_function,
@@ -242,7 +252,7 @@ def main():
     for index in random.sample(range(len(test_dataset)), 3):
         logger.info(f"Sample {index} of the training set: {test_dataset[index]}.")
 
-    if args.custom_model is not None:
+    if args.custom_model in ("hierarchical", "sliding_window"):
         data_collator = CustomDataCollator(tokenizer=tokenizer,
                                            max_sentence_len=pretrained_args.max_seq_length if args.max_seq_length is None else args.max_seq_length,
                                            max_document_len=pretrained_args.max_document_length if args.max_document_length is None else args.max_document_length,
