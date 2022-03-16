@@ -198,9 +198,16 @@ class HierarchicalClassificationModel(nn.Module):
     def __init__(self, c_args, args, tokenizer, num_labels, **kwargs):
         super().__init__()
         self.hierarchical_model = HiearchicalModel(args, tokenizer)
-        if not c_args.custom_from_scratch:
-            self.hierarchical_model.load_state_dict(torch.load(os.path.join(c_args.pretrained_dir, "model.pth")))
 
+        if c_args.custom_model == "hierarchical":
+            self.hierarchical_model = HiearchicalModel(args, tokenizer)
+            if not c_args.custom_from_scratch:
+                self.hierarchical_model.load_state_dict(torch.load(os.path.join(c_args.pretrained_dir, "model.pth")))
+        elif c_args.custom_model == "sliding_window":
+            self.hierarchical_model = HiearchicalBaseModel(args, tokenizer)
+        else:
+            raise NotImplementedError("Respective model type is not supported.")
+            
         self.num_labels = num_labels
         if c_args.dropout is not None:
             self.dropout = nn.Dropout(c_args.dropout)
