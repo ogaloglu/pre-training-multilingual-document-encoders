@@ -552,8 +552,6 @@ def main():
                 # Modified
                 running_loss += loss.item()
             if step % args.logging_steps == args.logging_steps - 1:
-                #logger.info(f"epoch: {epoch}, step {step+1}:, loss: {running_loss/args.logging_steps}")
-                #running_loss = 0.0
                 # TODO change
                 if args.inspect:
                     model.eval()
@@ -567,9 +565,10 @@ def main():
                     losses = losses[: len(eval_dataset)]
                     total_loss = torch.mean(losses)
                     logger.info(f"epoch: {epoch}, step {step+1}:, train_loss: {running_loss/args.logging_steps}, val_loss: {total_loss}")
-                    running_loss = 0.0
                     model.train()
-                # TODO change
+                else:
+                    logger.info(f"epoch: {epoch}, step {step+1}:, loss: {running_loss/args.logging_steps}")
+                running_loss = 0.0
             if completed_steps >= args.max_train_steps:
                 break
         model.eval()
