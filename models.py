@@ -57,9 +57,10 @@ class HiearchicalBaseModel(nn.Module):
     def __init__(self, args, tokenizer, **kwargs):
         super().__init__()
         # TODO: from pretrained or config
-        self.lower_config = AutoConfig.from_pretrained(args.model_name_or_path)
-        self.lower_model = self.lower_selector(args.model_name_or_path)
-        self.lower_dropout = nn.Dropout(args.lower_dropout)
+        self.lower_config = AutoConfig.from_pretrained(args.pretrained_dir)
+        self.lower_model = self.lower_selector(args.pretrained_dir)
+        # TODO: make here dynamic
+        self.lower_dropout = nn.Dropout(0.1)
 
         # If True, freeze the lower encoder
         if args.frozen:
@@ -155,7 +156,9 @@ class HiearchicalModel(nn.Module):
             lower_output = self.lower_model.base_model.embeddings(inputs_embeds=lower_output)
 
         upper_output = self.transformer_encoder(lower_output)  # (batch_size, sentences, hidden_size)
-        final_output = upper_output[:, 0]  # (batch_size, hidden_size)
+        # TODO: change
+        final_output = torch.mean(upper_output, 1)
+        #final_output = upper_output[:, 0]  # (batch_size, hidden_size)
 
         return final_output
 
@@ -210,20 +213,27 @@ class ContrastiveModel(nn.Module):
 class HierarchicalClassificationModel(nn.Module):
     def __init__(self, c_args, args, tokenizer, num_labels, **kwargs):
         super().__init__()
-        self.hierarchical_model = HiearchicalModel(args, tokenizer)
-
         if c_args.custom_model == "hierarchical":
             self.hierarchical_model = HiearchicalModel(args, tokenizer)
             if not c_args.custom_from_scratch:
                 self.hierarchical_model.load_state_dict(torch.load(os.path.join(c_args.pretrained_dir, "model.pth")))
         elif c_args.custom_model == "sliding_window":
-            self.hierarchical_model = HiearchicalBaseModel(args, tokenizer)
+            self.hierarchical_model = HiearchicalBaseModel(c_args, tokenizer)
         else:
             raise NotImplementedError("Respective model type is not supported.")
 
         self.num_labels = num_labels
+
+        # TODO: change
         if c_args.dropout is not None:
             self.dropout = nn.Dropout(c_args.dropout)
+        
+        # For freezing/unfreezing the HierarchicalModel
+        if c_args.unfreeze:
+            self._unfreeze_model()
+        elif c_args.freeze:
+            self._freeze_model()
+
         self.classifier = nn.Linear(self.hierarchical_model.lower_config.hidden_size, self.num_labels)
 
     def forward(self, article_1, mask_1, labels):
@@ -243,3 +253,12 @@ class HierarchicalClassificationModel(nn.Module):
             loss=loss,
             logits=logits
         )
+
+    def _unfreeze_model(self):
+        for param in self.hierarchical_model.parameters():
+            param.requires_grad = True
+
+    def _freeze_model(self):
+        for param in self.hierarchical_model.parameters():
+            param.requires_grad = False
+    
