@@ -111,7 +111,10 @@ def path_adder(args: argparse.Namespace, finetuning: bool = False, custom_model:
 
 def preprocess_function(examples: arrow_dataset.Batch, tokenizer):
     # Tokenization function for the AutoModels
-    result = tokenizer(examples["text"], padding=True, truncation=True)
+    # https://huggingface.co/docs/transformers/preprocessing
+    # TODO: make if statement
+    #result = tokenizer(examples["text"], padding=True, truncation=True)
+    result = tokenizer(examples["text"], padding=True, truncation=True, max_length=256)
     result["labels"] = examples["labels"]
     return result
 
@@ -129,3 +132,9 @@ def sliding_tokenize(example: arrow_dataset.Example, args: argparse.Namespace, t
         "mask_1": sentences["attention_mask"],
         "labels": example["labels"]
     }
+
+
+def freeze_base(model):
+    # For freezing base of the auto_models.
+    for param in model.base_model.parameters():
+        param.requires_grad = False
