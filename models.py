@@ -60,11 +60,11 @@ class HiearchicalBaseModel(nn.Module):
         self.lower_config = AutoConfig.from_pretrained(args.model_name_or_path)
         self.lower_model = self.lower_selector(args.model_name_or_path)
         self.lower_dropout = nn.Dropout(args.lower_dropout)
-        
+
         # If True, freeze the lower encoder
         if args.frozen:
             self._freeze_lower()
-    
+
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
         input_ids = input_ids.permute(1, 0, 2)  # (sentences, batch_size, words)
         attention_mask = attention_mask.permute(1, 0, 2)
@@ -77,7 +77,7 @@ class HiearchicalBaseModel(nn.Module):
 
         lower_output = torch.stack(lower_encoded)  # (sentences, batch_size, hidden_size)
         lower_output = lower_output.permute(1, 0, 2)  # (batch_size, sentences, hidden_size)
-       
+
         # Mean Pooling
         final_output = torch.mean(lower_output, 1)  # (batch_size, hidden_size)
 
@@ -86,7 +86,7 @@ class HiearchicalBaseModel(nn.Module):
     def _freeze_lower(self):
         for param in self.lower_model.base_model.parameters():
             param.requires_grad = False
-        
+
     def lower_selector(self, model_name):
         if self.lower_config.model_type == "xlm-roberta":
             lower_model = LowerXLMREncoder.from_pretrained(model_name)
@@ -162,7 +162,7 @@ class HiearchicalModel(nn.Module):
     def _freeze_lower(self):
         for param in self.lower_model.base_model.parameters():
             param.requires_grad = False
-    
+
     def lower_selector(self, model_name):
         if self.lower_config.model_type == "xlm-roberta":
             lower_model = LowerXLMREncoder.from_pretrained(model_name)

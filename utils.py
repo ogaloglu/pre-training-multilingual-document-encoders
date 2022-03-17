@@ -105,7 +105,7 @@ def path_adder(args: argparse.Namespace, finetuning: bool = False, custom_model:
     elif finetuning and custom_model == "hierarchical":
         i_path = f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}{'_init' if args.custom_from_scratch else ''}__"
     else:
-        i_path = f"{MODEL_MAPPING[args.pretrained_dir]}{'_sliding_window' if arg.custom_model ==  'sliding_window' else ''}__"
+        i_path = f"{MODEL_MAPPING[args.pretrained_dir]}{'_sliding_window' if args.custom_model ==  'sliding_window' else ''}__"
     return i_path
 
 
@@ -118,11 +118,11 @@ def preprocess_function(examples: arrow_dataset.Batch, tokenizer):
 
 def sliding_tokenize(example: arrow_dataset.Example, args: argparse.Namespace, tokenizer):
     # Tokenization function for sliding window models
-    sentences = tokenizer(example["text"], 
-                          max_length=args.max_seq_length, 
-                          truncation=True, 
+    sentences = tokenizer(example["text"],
+                          max_length=args.max_seq_length,
+                          truncation=True,
                           stride=34,  # TODO: add to args
-                          return_overflowing_tokens=True, 
+                          return_overflowing_tokens=True,
                           padding=True)
     return {
         "article_1": sentences["input_ids"],
