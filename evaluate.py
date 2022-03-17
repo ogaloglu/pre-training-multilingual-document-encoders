@@ -158,7 +158,7 @@ def main():
             if args.custom_model == "hierarchical":
                 inter_path = path_adder(pretrained_args, finetuning=True, custom_model=args.custom_model)
             else:
-                inter_path = path_adder(args, finetuning=True)
+                inter_path = path_adder(finetuned_args, finetuning=True)
             inter_path += datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
             args.output_dir = os.path.join(args.output_dir, inter_path)
             os.makedirs(args.output_dir, exist_ok=True)
@@ -223,7 +223,7 @@ def main():
                 custom_tokenize,
                 fn_kwargs={"tokenizer": tokenizer, "args": args, "article_numbers": ARTICLE_NUMBERS},
                 num_proc=args.preprocessing_num_workers,
-                load_from_cache_file=not args.overwrite_cache,
+                load_from_cache_file=False,
                 desc="Running tokenizer on dataset",
             )
     elif args.custom_model == "sliding_window":
@@ -233,6 +233,7 @@ def main():
                 fn_kwargs={"tokenizer": tokenizer, "args": args},
                 num_proc=args.preprocessing_num_workers,
                 remove_columns=test_dataset.column_names,
+                load_from_cache_file=False,
                 desc="Running tokenizer on dataset",
             )       
     else:
@@ -243,6 +244,7 @@ def main():
                 batched=True,
                 num_proc=args.preprocessing_num_workers,
                 remove_columns=test_dataset.column_names,
+                load_from_cache_file=False,
                 desc="Running tokenizer on dataset",
             )
 

@@ -43,7 +43,7 @@ from transformers import (
 from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
 
-from utils import custom_tokenize, load_args, save_args, path_adder, preprocess_function, sliding_tokenize
+from utils import custom_tokenize, load_args, save_args, path_adder, preprocess_function, sliding_tokenize, freeze_base
 from data_collator import CustomDataCollator
 from models import HierarchicalClassificationModel
 
@@ -168,11 +168,11 @@ def parse_args():
              "padded if their length is different.",
     )
     # TODO: change
-    # parser.add_argument(
-    #     "--frozen",
-    #     action="store_true",
-    #     help="Either the lower level encoder is frozen or not."
-    # )
+    parser.add_argument(
+        "--frozen",
+        action="store_true",
+        help="Either the lower level encoder is frozen or not."
+    )
     parser.add_argument(
         "--dropout",
         type=float,
@@ -292,7 +292,7 @@ def main():
 
     if args.custom_model in ("hierarchical", "sliding_window"):
         model = HierarchicalClassificationModel(c_args=args,
-                                                args=pretrained_args,
+                                                args=None if args.custom_model == "sliding_window" else pretrained_args,
                                                 tokenizer=tokenizer,
                                                 num_labels=num_labels)
     else:
@@ -301,6 +301,8 @@ def main():
             args.pretrained_dir,
             config=config,
         )
+        if args.frozen:
+            freeze_base(model)
 
     if args.custom_model == "hierarchical":
         with accelerator.main_process_first():
@@ -311,7 +313,7 @@ def main():
                 custom_tokenize,
                 fn_kwargs={"tokenizer": tokenizer, "args": args, "article_numbers": ARTICLE_NUMBERS},
                 num_proc=args.preprocessing_num_workers,
-                load_from_cache_file=not args.overwrite_cache,
+                load_from_cache_file=False,
                 desc="Running tokenizer on dataset",
             )
     elif args.custom_model == "sliding_window":
@@ -321,6 +323,7 @@ def main():
                 fn_kwargs={"tokenizer": tokenizer, "args": args},
                 num_proc=args.preprocessing_num_workers,
                 remove_columns=raw_datasets["train"].column_names,
+                load_from_cache_file=False,
                 desc="Running tokenizer on dataset",
             )
     else:
@@ -331,6 +334,7 @@ def main():
                 batched=True,
                 num_proc=args.preprocessing_num_workers,
                 remove_columns=raw_datasets["train"].column_names,
+                load_from_cache_file=False,
                 desc="Running tokenizer on dataset",
             )
 
