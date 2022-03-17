@@ -174,6 +174,16 @@ def parse_args():
         help="Either the lower level encoder is frozen or not."
     )
     parser.add_argument(
+        "--unfreeze",
+        action="store_true",
+        help="If True, unfreezes the whole model."
+    )
+    parser.add_argument(
+        "--freeze",
+        action="store_true",
+        help="If True, freeze the whole model other than the classifier."
+    )
+    parser.add_argument(
         "--dropout",
         type=float,
         default=None,
@@ -233,7 +243,7 @@ def main():
             # Modified: output_dir is concatanated with datetime and command line arguments are also saved
             # TODO: refactor
             if args.custom_model == "hierarchical":
-                inter_path = path_adder(pretrained_args, finetuning=True, custom_model=args.custom_model)
+                inter_path = path_adder(pretrained_args, finetuning=True, custom_model=args.custom_model, c_args=args)
             else:
                 inter_path = path_adder(args, finetuning=True)
             inter_path += datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
