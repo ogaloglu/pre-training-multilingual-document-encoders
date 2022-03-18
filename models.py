@@ -128,6 +128,9 @@ class HiearchicalModel(nn.Module):
         # If positional encoding will be used in upper encoder or not
         self.upper_positional = getattr(args, "upper_positional", True)
 
+        # Setting the pooling method of the upper encoder        
+        self.upper_pooling = getattr(args, "upper_pooling")
+
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
         input_ids = input_ids.permute(1, 0, 2)  # (sentences, batch_size, words)
         attention_mask = attention_mask.permute(1, 0, 2)
@@ -156,9 +159,13 @@ class HiearchicalModel(nn.Module):
             lower_output = self.lower_model.base_model.embeddings(inputs_embeds=lower_output)
 
         upper_output = self.transformer_encoder(lower_output)  # (batch_size, sentences, hidden_size)
-        # TODO: change
-        final_output = torch.mean(upper_output, 1)
-        #final_output = upper_output[:, 0]  # (batch_size, hidden_size)
+
+        if self.upper_pooling == "mean":
+            final_output = torch.mean(upper_output, 1)  # (batch_size, hidden_size)
+        elif self.upper_pooling == "dcls":
+            final_output = upper_output[:, 0]  # (batch_size, hidden_size)
+        else:
+            raise NotImplementedError("Respective pooling type is not supported.")
 
         return final_output
 
@@ -228,7 +235,7 @@ class HierarchicalClassificationModel(nn.Module):
         if c_args.dropout is not None:
             self.dropout = nn.Dropout(c_args.dropout)
         
-        # For freezing/unfreezing the HierarchicalModel
+        # For freezing/unfreezing the whole HierarchicalModel
         if c_args.unfreeze:
             self._unfreeze_model()
         elif c_args.freeze:
