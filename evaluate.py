@@ -135,6 +135,7 @@ def main():
     # Modified: classification arguments
     args = parse_args()
 
+    # TODO: change the logic
     # Argments from pretraining
     if args.custom_model == "hierarchical":
         pretrained_args = load_args(os.path.join(args.finetuned_dir, "pretrained_args.json"))
@@ -203,7 +204,7 @@ def main():
 
     if args.custom_model in ("hierarchical", "sliding_window"):
         model = HierarchicalClassificationModel(c_args=finetuned_args,
-                                                args=pretrained_args,
+                                                args=None if args.custom_model == "sliding_window" else pretrained_args,
                                                 tokenizer=tokenizer,
                                                 num_labels=num_labels)
         model.load_state_dict(torch.load(os.path.join(args.finetuned_dir, "model.pth")))
