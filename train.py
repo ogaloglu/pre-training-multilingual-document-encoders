@@ -303,6 +303,13 @@ def parse_arguments():
         help="If True, validation loss is checked in each logging step"
              "(rather than only after each epoch)."
     )
+    parser.add_argument(
+        "--upper_pooling",
+        type=str,
+        required=True,
+        choices=["mean", "dcls"],
+        help="Determines to pooling method of the upper encoder."
+    )
     args = parser.parse_args()
     # Sanity checks
     if args.dataset_name is None and args.train_file is None and args.validation_file is None:
