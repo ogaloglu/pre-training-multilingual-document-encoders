@@ -18,7 +18,7 @@ MODEL_MAPPING = {
 }
 
 
-def cos_sim(a: Tensor, b: Tensor):
+def cos_sim(a: Tensor, b: Tensor) -> Tensor:
     """
     Computes the cosine similarity cos_sim(a[i], b[j]) for all i and j.
     :return: Matrix with res[i][j]  = cos_sim(a[i], b[j])
@@ -42,9 +42,10 @@ def cos_sim(a: Tensor, b: Tensor):
     return torch.mm(a_norm, b_norm.transpose(0, 1))
 
 
-def custom_tokenize(example: arrow_dataset.Example, tokenizer, args: argparse.Namespace, article_numbers: int):
+def custom_tokenize(example: arrow_dataset.Example, tokenizer,
+                    args: argparse.Namespace, article_numbers: int) -> arrow_dataset.Example:
 
-    def tokenize_helper(article: str, tokenizer, args: argparse.Namespace):
+    def tokenize_helper(article: str, tokenizer, args: argparse.Namespace) -> tuple:
         sentences = [tokenizer.encode(sentence, add_special_tokens=False) for sentence in sent_tokenize(article)]
         sentences = [sentence[:args.max_seq_length - 2] for sentence in sentences]
         sentences = [[tokenizer.convert_tokens_to_ids(tokenizer.cls_token)] + sentence +
@@ -104,7 +105,8 @@ def path_adder(args: argparse.Namespace, finetuning: bool = False, custom_model:
     if not finetuning:
         i_path = f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.frozen else ''}{'_hard' if args.use_hard_negatives else ''}_{args.num_train_epochs}__"
     elif finetuning and custom_model == "hierarchical":
-        i_path = f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}{'_init' if c_args.custom_from_scratch else ''}__"
+        i_path = f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}__"
+        # i_path = f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}{'_init' if c_args.custom_from_scratch else ''}__"
     else:
         i_path = f"{MODEL_MAPPING[args.pretrained_dir]}{'_sliding_window' if args.custom_model ==  'sliding_window' else ''}__"
     return i_path
@@ -115,7 +117,7 @@ def preprocess_function(examples: arrow_dataset.Batch, tokenizer):
     # https://huggingface.co/docs/transformers/preprocessing
     # TODO: make if statement
     #result = tokenizer(examples["text"], padding=True, truncation=True)
-    result = tokenizer(examples["text"], padding=True, truncation=True, max_length=256)
+    result = tokenizer(examples["text"], padding=True, truncation=True, max_length=128)
     result["labels"] = examples["labels"]
     return result
 
@@ -139,3 +141,35 @@ def freeze_base(model):
     # For freezing base of the auto_models.
     for param in model.base_model.parameters():
         param.requires_grad = False
+
+
+def get_extended_attention_mask(attention_mask: Tensor) -> Tensor:
+    """
+    Makes broadcastable attention and causal masks so that future and masked tokens are ignored.
+    Arguments:
+        attention_mask (`torch.Tensor`):
+            Mask with ones indicating tokens to attend to, zeros for tokens to ignore.
+    Returns:
+        `torch.Tensor` The extended attention mask, with a the same dtype as `attention_mask.dtype`.
+    """
+    # We can provide a self-attention mask of dimensions [batch_size, to_seq_length]
+    # ourselves in which case we just need to make it broadcastable to all heads.
+    extended_attention_mask = attention_mask[:, None, None, :]
+    extended_attention_mask = extended_attention_mask.to(dtype=extended_attention_mask.dtype)  # fp16 compatibility
+    extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
+    return extended_attention_mask
+
+
+def get_mean(upper_output: Tensor, document_mask: Tensor) -> Tensor:
+
+    # print(upper_output)
+    # document_mask has to be expanded to the shape of upper_output
+    input_mask_expanded = document_mask.unsqueeze(-1).expand(upper_output.size()).float()
+
+    # Rather than taking simply mean, we have to consider the padded documents.
+    # Therefore, effective length of each document will also change accordingly.
+    sum_embeddings = torch.sum(upper_output * input_mask_expanded, 1)
+    sum_mask = input_mask_expanded.sum(1)
+    sum_mask = torch.clamp(sum_mask, min=1e-9)
+    output = sum_embeddings / sum_mask
+    return output

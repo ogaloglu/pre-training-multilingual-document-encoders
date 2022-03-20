@@ -6,7 +6,7 @@ from torch import nn
 from transformers import BertPreTrainedModel, AutoConfig, RobertaPreTrainedModel, BertModel, XLMRobertaModel
 from transformers.modeling_outputs import SequenceClassifierOutput
 
-from utils import cos_sim
+from utils import cos_sim, get_extended_attention_mask, get_mean
 
 
 class Pooler(nn.Module):
@@ -31,7 +31,7 @@ class LowerXLMREncoder(RobertaPreTrainedModel):
         self.init_weights()
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
-        model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None)
+        model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None) 
         output = model_output['last_hidden_state'][:, 0]  # (batch_size, hidden_size)
         #output = self.pooler(output)
         return output
@@ -111,15 +111,12 @@ class HiearchicalModel(nn.Module):
         self.tokenizer = tokenizer
         self.lower_model.resize_token_embeddings(len(self.tokenizer))
 
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.lower_config.hidden_size,
-                                                        nhead=args.upper_nhead,
-                                                        dim_feedforward=args.upper_dim_feedforward,
-                                                        dropout=args.upper_dropout,
-                                                        activation=args.upper_activation,
-                                                        layer_norm_eps=args.upper_layer_norm_eps,
-                                                        batch_first=True)
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer=self.encoder_layer,
-                                                         num_layers=args.upper_num_layers)
+        self.upper_config = AutoConfig.from_pretrained(args.model_name_or_path)
+        self.update_config(args)
+
+        # Initiliaze custom Bert model with updated config
+        self.upper_embeddings = BertEmbeddings(self.upper_config)
+        self.upper_encoder = BertEncoder(self.upper_config)
 
         # If True, freeze the lower encoder
         if args.frozen:
@@ -131,7 +128,7 @@ class HiearchicalModel(nn.Module):
         # Setting the pooling method of the upper encoder        
         self.upper_pooling = getattr(args, "upper_pooling")
 
-    def forward(self, input_ids, token_type_ids=None, attention_mask=None):
+    def forward(self, input_ids, attention_mask=None, dcls=None,document_mask=None ):
         input_ids = input_ids.permute(1, 0, 2)  # (sentences, batch_size, words)
         attention_mask = attention_mask.permute(1, 0, 2)
         lower_encoded = []
@@ -144,24 +141,20 @@ class HiearchicalModel(nn.Module):
         lower_output = torch.stack(lower_encoded)  # (sentences, batch_size, hidden_size)
         lower_output = lower_output.permute(1, 0, 2)  # (batch_size, sentences, hidden_size)
 
-        # Modified: Document level [CLS] tokens are prepended to the documents
-        dcls_tokens = self.tokenizer(["[DCLS]"] * lower_output.shape[0],
-                                     add_special_tokens=False,
-                                     return_tensors="pt",
-                                     return_attention_mask=False,
-                                     return_token_type_ids=False)
-        # TODO: Maybe create random tensors instead?
-        dcls_tokens.to(lower_output.device)
-        dcls_out = self.lower_model.base_model.embeddings.word_embeddings(dcls_tokens["input_ids"])
+        dcls_out = self.upper_embeddings.word_embeddings(dcls)
         lower_output = torch.cat([dcls_out, lower_output], dim=1)
-
+        
         if self.upper_positional:
-            lower_output = self.lower_model.base_model.embeddings(inputs_embeds=lower_output)
+            lower_output = self.upper_embeddings(inputs_embeds=lower_output)
 
-        upper_output = self.transformer_encoder(lower_output)  # (batch_size, sentences, hidden_size)
+        # Added upper encoder level attention mask
+        extended_document_mask = get_extended_attention_mask(document_mask)
+        encoder_output = self.upper_encoder(hidden_states=lower_output,
+                                          attention_mask=extended_document_mask)  # (batch_size, sentences, hidden_size)
 
+        upper_output = encoder_output["last_hidden_state"]
         if self.upper_pooling == "mean":
-            final_output = torch.mean(upper_output, 1)  # (batch_size, hidden_size)
+            final_output = get_mean(upper_output, document_mask)  # (batch_size, hidden_size)
         elif self.upper_pooling == "dcls":
             final_output = upper_output[:, 0]  # (batch_size, hidden_size)
         else:
@@ -181,6 +174,16 @@ class HiearchicalModel(nn.Module):
         else:
             raise NotImplementedError("Respective model type is not supported.")
         return lower_model
+
+    def update_config(self, args):
+        # self.config.hidden_size
+        self.upper_config.num_attention_heads = args.upper_nhead
+        self.upper_config.intermediate_size = args.upper_dim_feedforward
+        self.upper_config.hidden_dropout_prob = args.upper_dropout
+        self.upper_config.hidden_act = args.upper_activation
+        self.upper_config.layer_norm_eps = args.upper_layer_norm_eps
+        self.upper_config.num_hidden_layers = args.upper_num_layers
+        self.upper_config.vocab_size = len(self.tokenizer)
 
 
 class ContrastiveModel(nn.Module):
