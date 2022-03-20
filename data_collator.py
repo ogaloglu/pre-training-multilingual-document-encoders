@@ -22,7 +22,12 @@ class CustomDataCollator:
 
         for article_number in range(1, self.article_numbers + 1):
             batch_sentences = list()
+            # For sentence level masking
             batch_masks = list()
+            # For document level masking
+            batch_document_masks = list()
+            # For early initiliazed "DCLS" (Document level CLS)
+            batch_dcls = list()
 
             sen_len_article = [len(sentence) for instance in features
                                for sentence in instance[f"article_{article_number}"]]
@@ -31,7 +36,6 @@ class CustomDataCollator:
             assert sen_len_article == sen_len_mask, (
                 f"There is a mismatch for article_{article_number} and mask_{article_number}."
                 )
-
             sen_len = min(self.max_sentence_len, max(sen_len_article))
 
             doc_len_article = [len(instance[f"mask_{article_number}"]) for instance in features]
@@ -39,13 +43,21 @@ class CustomDataCollator:
 
             for feature in features:
                 sentences, masks = self.pad_sentence(sen_len, feature, article_number)
-                self.pad_document(sentences, masks, doc_len)
+                document_mask = [1] * len(masks)
+                self.pad_document(sentences, masks, document_mask, doc_len)
+                # Modified: For DCLS token
+                document_mask = [1] + document_mask
 
                 batch_sentences.append(sentences)
                 batch_masks.append(masks)
+                batch_document_masks.append(document_mask)
+                # For each 
+                batch_dcls.append(tokenizer.encode("[DCLS]", add_special_tokens=False))
 
             batch[f"article_{article_number}"] = torch.tensor(batch_sentences, dtype=torch.int64)
             batch[f"mask_{article_number}"] = torch.tensor(batch_masks, dtype=torch.int64)
+            batch[f"dcls_{article_number}"] = torch.tensor(batch_dcls, dtype=torch.int64)
+            batch[f"document_mask_{article_number}"] = torch.tensor(batch_document_masks, dtype=torch.int64)
 
             # Modified for classification task
             if "labels" in features[0]:
@@ -69,13 +81,14 @@ class CustomDataCollator:
         masks = [sentence + [0] * (sen_len - len(sentence)) for sentence in feature[f"mask_{article_number}"]]
         return sentences, masks
 
-    def pad_document(self, sentences: list, masks: list, doc_len: int):
+    def pad_document(self, sentences: list, masks: list, document_mask: list, doc_len: int):
         """ Does document level padding so that within the batch, each document has the same
         number of sentences.
 
         Args:
             sentences (list): Sentences of the respective document.
-            masks (list): Attention masks of the respective document.
+            masks (list): Sentence level attention masks of the respective document.
+            document_mask (list): Document level attention mask of the respective document
             doc_len (int): Number of sentences that each document of the batch should have.
         """
         # Pad documents while considering [DCLS] (document-level CLS) that will be preprended later
@@ -88,6 +101,9 @@ class CustomDataCollator:
         if len(sentences) < doc_len:
             sentences += [sentence_padding_array for difference in range(doc_len - len(sentences))]
             masks += [mask_padding_array for difference in range(doc_len - len(masks))]
+            # TODO: check
+            document_mask.extend([0] * (doc_len - len(document_mask)))
         elif len(sentences) > doc_len:
             sentences[:] = sentences[: doc_len]
             masks[:] = masks[: doc_len]
+            document_mask[:] = document_mask[: doc_len]
