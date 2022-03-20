@@ -547,8 +547,8 @@ def main():
         running_loss = 0.0
         for step, batch in enumerate(train_dataloader):
             # Modified for ContrastiveModel
-            loss = model(**batch)
-            loss = loss / args.gradient_accumulation_steps
+            outputs = model(**batch)
+            loss = outputs.loss / args.gradient_accumulation_steps
             accelerator.backward(loss)
             if step % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
                 optimizer.step()
@@ -565,7 +565,8 @@ def main():
                     losses = []
                     for _, batch in enumerate(eval_dataloader):
                         with torch.no_grad():
-                            loss = model(**batch)
+                            outputs = model(**batch)
+                        loss = outputs.loss
                         losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))
 
                     losses = torch.cat(losses)
@@ -583,7 +584,8 @@ def main():
         for step, batch in enumerate(eval_dataloader):
             with torch.no_grad():
                 # Modified for Contrastive Model
-                loss = model(**batch)
+                outputs = model(**batch)
+            loss = outputs.loss
             losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))
 
         losses = torch.cat(losses)
