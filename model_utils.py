@@ -92,7 +92,7 @@ class ContrastiveModelOutput(ModelOutput):
     return ContrastiveModelOutput(
         loss=self.cross_entropy_loss(scores_1, labels) + self.cross_entropy_loss(scores_2, labels),
         scores_1=scores_1,
-        dist_1=torch.argmax(scores_1, dim=1)),
+        dist_1=torch.argmax(scores_1, dim=1),
         scores_2=scores_2,
-        dist_2=torch.argmax(scores_2, dim=1)),
+        dist_2=torch.argmax(scores_2, dim=1),
     )
