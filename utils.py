@@ -6,7 +6,6 @@ from collections import namedtuple
 
 from nltk import sent_tokenize
 from datasets import arrow_dataset
-from transformers.modeling_outputs import SequenceClassifierOutput
 
 
 MODEL_MAPPING = {

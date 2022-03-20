@@ -126,10 +126,10 @@ class HiearchicalModel(nn.Module):
         # If positional encoding will be used in upper encoder or not
         self.upper_positional = getattr(args, "upper_positional", True)
 
-        # Setting the pooling method of the upper encoder        
+        # Setting the pooling method of the upper encoder
         self.upper_pooling = getattr(args, "upper_pooling")
 
-    def forward(self, input_ids, attention_mask=None, dcls=None,document_mask=None ):
+    def forward(self, input_ids, attention_mask=None, dcls=None, document_mask=None):
         input_ids = input_ids.permute(1, 0, 2)  # (sentences, batch_size, words)
         attention_mask = attention_mask.permute(1, 0, 2)
         lower_encoded = []
@@ -144,14 +144,14 @@ class HiearchicalModel(nn.Module):
 
         dcls_out = self.upper_embeddings.word_embeddings(dcls)
         lower_output = torch.cat([dcls_out, lower_output], dim=1)
-        
+
         if self.upper_positional:
             lower_output = self.upper_embeddings(inputs_embeds=lower_output)
 
         # Added upper encoder level attention mask
         extended_document_mask = get_extended_attention_mask(document_mask)
         encoder_output = self.upper_encoder(hidden_states=lower_output,
-                                          attention_mask=extended_document_mask)  # (batch_size, sentences, hidden_size)
+                                            attention_mask=extended_document_mask)  # (batch_size, sentences, hidden_size)
 
         upper_output = encoder_output["last_hidden_state"]
         if self.upper_pooling == "mean":
@@ -201,7 +201,7 @@ class ContrastiveModel(nn.Module):
             raise NotImplementedError("Respective similarity function is not implemented.")
 
     def forward(self, article_1, mask_1, dcls_1, document_mask_1,
-                article_2, mask_2, dcls_2, document_mask_2, 
+                article_2, mask_2, dcls_2, document_mask_2,
                 article_3=None, mask_3=None, dcls_3=None, document_mask_3=None,
                 article_4=None, mask_4=None, dcls_4=None, document_mask_4=None):
         output_1 = self.hierarchical_model(input_ids=article_1,
@@ -219,12 +219,12 @@ class ContrastiveModel(nn.Module):
                                                attention_mask=mask_3,
                                                dcls=dcls_3,
                                                document_mask=document_mask_3
-                                              )  # (batch_size, hidden_size)
+                                               )  # (batch_size, hidden_size)
             output_4 = self.hierarchical_model(input_ids=article_4,
                                                attention_mask=mask_4,
                                                dcls=dcls_4,
                                                document_mask=document_mask_4
-                                              )  # (batch_size, hidden_size)
+                                               )  # (batch_size, hidden_size)
 
             scores_1 = self.similarity_fct(output_1, torch.cat([output_2, output_3])) * self.scale
             scores_2 = self.similarity_fct(output_2, torch.cat([output_1, output_4])) * self.scale
@@ -253,7 +253,7 @@ class HierarchicalClassificationModel(nn.Module):
         # TODO: change
         if c_args.dropout is not None:
             self.dropout = nn.Dropout(c_args.dropout)
-        
+
         # For freezing/unfreezing the whole HierarchicalModel
         if c_args.unfreeze:
             self._unfreeze_model()
