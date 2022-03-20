@@ -199,16 +199,31 @@ class ContrastiveModel(nn.Module):
         else:
             raise NotImplementedError("Respective similarity function is not implemented.")
 
-    def forward(self, article_1, mask_1, article_2, mask_2, article_3=None, mask_3=None, article_4=None, mask_4=None):
+    def forward(self, article_1, mask_1, dcls_1, document_mask_1,
+                article_2, mask_2, dcls_2, document_mask_2, 
+                article_3=None, mask_3=None, dcls_3=None, document_mask_3=None,
+                article_4=None, mask_4=None, dcls_4=None, document_mask_4=None):
         output_1 = self.hierarchical_model(input_ids=article_1,
-                                           attention_mask=mask_1)  # (batch_size, hidden_size)
+                                           attention_mask=mask_1,
+                                           dcls=dcls_1,
+                                           document_mask=document_mask_1
+                                           )  # (batch_size, hidden_size)
         output_2 = self.hierarchical_model(input_ids=article_2,
-                                           attention_mask=mask_2)  # (batch_size, hidden_size)
+                                           attention_mask=mask_2,
+                                           dcls=dcls_2,
+                                           document_mask=document_mask_2
+                                           )  # (batch_size, hidden_size)
         if self.use_hard_negatives:
             output_3 = self.hierarchical_model(input_ids=article_3,
-                                               attention_mask=mask_3)  # (batch_size, hidden_size)
+                                               attention_mask=mask_3,
+                                               dcls=dcls_3,
+                                               document_mask=document_mask_3
+                                              )  # (batch_size, hidden_size)
             output_4 = self.hierarchical_model(input_ids=article_4,
-                                               attention_mask=mask_4)  # (batch_size, hidden_size)
+                                               attention_mask=mask_4,
+                                               dcls=dcls_4,
+                                               document_mask=document_mask_4
+                                              )  # (batch_size, hidden_size)
 
             scores_1 = self.similarity_fct(output_1, torch.cat([output_2, output_3])) * self.scale
             scores_2 = self.similarity_fct(output_2, torch.cat([output_1, output_4])) * self.scale
