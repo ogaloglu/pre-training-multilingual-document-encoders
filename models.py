@@ -233,13 +233,13 @@ class ContrastiveModel(nn.Module):
             scores_2 = self.similarity_fct(output_2, output_1) * self.scale
 
         labels = torch.tensor(range(len(scores_1)), dtype=torch.long, device=scores_1.device)
-        
+
         return ContrastiveModelOutput(
             loss=self.cross_entropy_loss(scores_1, labels) + self.cross_entropy_loss(scores_2, labels),
             scores_1=scores_1,
-            dist_1=torch.argmax(scores_1, dim=1)),
+            dist_1=torch.argmax(scores_1, dim=1),
             scores_2=scores_2,
-            dist_2=torch.argmax(scores_2, dim=1)),
+            dist_2=torch.argmax(scores_2, dim=1),
         )
 
 class HierarchicalClassificationModel(nn.Module):
