@@ -86,7 +86,7 @@ class ContrastiveModelOutput(ModelOutput):
     """
 
     loss: torch.Tensor
-    scores_1: OptionL[torch.Tensor] = None
-    dist_1: Optional[torch.Tensor] = None
-    scores_2: Optional[torch.Tensor] = None
-    dist_2: Optional[torch.Tensor] = None
+    scores_1: torch.Tensor = None
+    dist_1: torch.Tensor = None
+    scores_2: torch.Tensor = None
+    dist_2: torch.Tensor = None
