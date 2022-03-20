@@ -52,7 +52,7 @@ class CustomDataCollator:
                 batch_masks.append(masks)
                 batch_document_masks.append(document_mask)
                 # For each 
-                batch_dcls.append(tokenizer.encode("[DCLS]", add_special_tokens=False))
+                batch_dcls.append(self.tokenizer.encode("[DCLS]", add_special_tokens=False))
 
             batch[f"article_{article_number}"] = torch.tensor(batch_sentences, dtype=torch.int64)
             batch[f"mask_{article_number}"] = torch.tensor(batch_masks, dtype=torch.int64)
