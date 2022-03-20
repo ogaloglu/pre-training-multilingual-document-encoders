@@ -7,7 +7,7 @@ from transformers import BertPreTrainedModel, AutoConfig, RobertaPreTrainedModel
 from transformers.modeling_outputs import SequenceClassifierOutput
 from transformers.models.bert.modeling_bert import BertEmbeddings, BertEncoder
 
-from utils import cos_sim, get_extended_attention_mask, get_mean
+from model_utils import cos_sim, get_extended_attention_mask, get_mean
 
 
 class Pooler(nn.Module):
