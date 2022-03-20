@@ -254,14 +254,14 @@ def parse_arguments():
     parser.add_argument(
         "--upper_activation",
         type=str,
-        default="relu",
+        default="gelu",
         choices=["relu", "gelu"],
         help="The the activation function of the intermediate layer of upper level encoder.",
     )
     parser.add_argument(
         "--upper_layer_norm_eps",
         type=float,
-        default=1e-5,
+        default=1e-12,
         help="The eps value in layer normalization components of upper level encoder.",
     )
     parser.add_argument(
