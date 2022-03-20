@@ -1,6 +1,7 @@
 """ Utility functions to be used for modeling."""
 import torch
 from torch import Tensor
+from transformers.file_utils import ModelOutput
 
 
 def cos_sim(a: Tensor, b: Tensor) -> Tensor:
@@ -63,3 +64,35 @@ def get_mean(upper_output: Tensor, document_mask: Tensor) -> Tensor:
     sum_mask = torch.clamp(sum_mask, min=1e-9)
     output = sum_embeddings / sum_mask
     return output
+
+
+@dataclass
+class ContrastiveModelOutput(ModelOutput):
+    """
+    Class for ContrastiveModel's outputs, with loss and the result of used similarity function.
+    Args:
+        loss (torch.Tensor):
+
+        scores_1 (torch.Tensor):
+
+        dist_1 (torch.Tensor):
+
+        scores_2 (torch.Tensor):
+
+        dist_2 (torch.Tensor):
+
+    """
+
+    loss: torch.Tensor
+    scorse_1: OptionL[torch.Tensor] = None
+    dist_1: Optional[torch.Tensor] = None
+    scores_2: Optional[torch.Tensor] = None
+    dist_2: Optional[torch.Tensor] = None
+
+    return ContrastiveModelOutput(
+        loss=self.cross_entropy_loss(scores_1, labels) + self.cross_entropy_loss(scores_2, labels),
+        scores_1=scores_1,
+        dist_1=torch.argmax(scores_1, dim=1)),
+        scores_2=scores_2,
+        dist_2=torch.argmax(scores_2, dim=1)),
+    )
