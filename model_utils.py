@@ -1,4 +1,6 @@
 """ Utility functions to be used for modeling."""
+from dataclasses import dataclass
+
 import torch
 from torch import Tensor
 from transformers.file_utils import ModelOutput
