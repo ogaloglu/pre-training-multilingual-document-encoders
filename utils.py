@@ -73,7 +73,8 @@ def load_args(args_path: str) -> namedtuple:
     return args
 
 
-def path_adder(args: argparse.Namespace, finetuning: bool = False, custom_model: str = None, c_args: argparse.Namespace = None) -> str:
+def path_adder(args: argparse.Namespace, finetuning: bool = False,
+               custom_model: str = None, c_args: argparse.Namespace = None) -> str:
     # TODO: has to be refactored.
     if not finetuning:
         i_path = (
@@ -98,7 +99,7 @@ def preprocess_function(examples: arrow_dataset.Batch, tokenizer):
     # Tokenization function for the AutoModels
     # https://huggingface.co/docs/transformers/preprocessing
     # TODO: make if statement
-    #result = tokenizer(examples["text"], padding=True, truncation=True)
+    # result = tokenizer(examples["text"], padding=True, truncation=True)
     result = tokenizer(examples["text"], padding=True, truncation=True, max_length=128)
     result["labels"] = examples["labels"]
     return result
