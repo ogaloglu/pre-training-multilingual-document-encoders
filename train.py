@@ -85,7 +85,7 @@ def parse_arguments():
     )
     parser.add_argument(
         "--validation_split_percentage",
-        default=10,
+        default=0.10,
         help="The percentage of the train set used as validation set in case there's no validation split",
     )
     parser.add_argument(
@@ -565,17 +565,17 @@ def main():
                     losses = []
                     for _, batch in enumerate(eval_dataloader):
                         with torch.no_grad():
-                            outputs = model(**batch)
+                            outputs = model(**batch)                          
                         loss = outputs.loss
                         losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))
 
                     losses = torch.cat(losses)
                     losses = losses[: len(eval_dataset)]
                     total_loss = torch.mean(losses)
-                    logger.info(f"epoch: {epoch}, step {step+1}:, train_loss: {running_loss/args.logging_steps}, val_loss: {total_loss}")
+                    logger.info(f"epoch: {epoch}, step: {step+1}, train_loss: {running_loss/args.logging_steps}, val_loss: {total_loss}")
                     model.train()
                 else:
-                    logger.info(f"epoch: {epoch}, step {step+1}:, loss: {running_loss/args.logging_steps}")
+                    logger.info(f"epoch: {epoch}, step: {step+1}, loss: {running_loss/args.logging_steps}")
                 running_loss = 0.0
             if completed_steps >= args.max_train_steps:
                 break
