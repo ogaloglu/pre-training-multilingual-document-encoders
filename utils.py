@@ -76,12 +76,21 @@ def load_args(args_path: str) -> namedtuple:
 def path_adder(args: argparse.Namespace, finetuning: bool = False, custom_model: str = None, c_args: argparse.Namespace = None) -> str:
     # TODO: has to be refactored.
     if not finetuning:
-        i_path = f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.frozen else ''}{'_hard' if args.use_hard_negatives else ''}_{args.num_train_epochs}__"
+        i_path = (
+                  f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.frozen else ''}"
+                  f"{'_hard' if args.use_hard_negatives else ''}_{args.per_device_train_batch_size}"
+                  f"_{args.upper_pooling}_{args.scale}__"
+                  )
     elif finetuning and custom_model == "hierarchical":
-        i_path = f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}__"
-        # i_path = f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}{'_init' if c_args.custom_from_scratch else ''}__"
+        i_path = (
+                  f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}"
+                  f"{'_init' if c_args.custom_from_scratch else ''}__"
+                  )
     else:
-        i_path = f"{MODEL_MAPPING[args.pretrained_dir]}{'_sliding_window' if args.custom_model ==  'sliding_window' else ''}__"
+        i_path = (
+                  f"{MODEL_MAPPING[args.pretrained_dir]}"
+                  f"{'_sliding_window' if args.custom_model ==  'sliding_window' else ''}__"
+                  )
     return i_path
 
 
