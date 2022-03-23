@@ -558,6 +558,8 @@ def main():
                 completed_steps += 1
                 # Modified
                 running_loss += loss.item()
+                logger.info(f"epoch: {epoch}, step: {step+1}, batch_loss: {loss.item()}")
+
             if step % args.logging_steps == args.logging_steps - 1:
                 # TODO change
                 if args.inspect:
@@ -604,7 +606,7 @@ def main():
             unwrapped_model = accelerator.unwrap_model(model)
             # Modified
             accelerator.save(obj=unwrapped_model.hierarchical_model.state_dict(),
-                             f=args.output_dir + "/model.pth")
+                             f=f"{args.output_dir}/model_{epoch}.pth")
             logger.info(f"model after spoch {epoch} is saved")
             # TODO: change later to save only one time
             if accelerator.is_main_process:

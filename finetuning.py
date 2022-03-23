@@ -43,7 +43,8 @@ from transformers import (
 from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
 
-from utils import custom_tokenize, load_args, save_args, path_adder, preprocess_function, sliding_tokenize, freeze_base
+from utils import custom_tokenize, load_args, save_args, path_adder, preprocess_function, sliding_tokenize
+from model_utils import freeze_base
 from data_collator import CustomDataCollator
 from models import HierarchicalClassificationModel
 
