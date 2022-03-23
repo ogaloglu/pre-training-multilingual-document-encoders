@@ -2,7 +2,7 @@
 
 accelerate launch finetuning.py \
     --train_file /work/ogalolu/datasets/mldoc1000/en \
-    --pretrained_dir /work-ceph/ogalolu/models/trained_models/labse_2_frozen_hard_128_mean_20__2022_03_23-00_34_36/model.pth \
+    --pretrained_dir /work-ceph/ogalolu/models/trained_models/labse_2_frozen_hard_128_mean_20__2022_03_23-00_34_36 \
     --per_device_train_batch_size 128 \
     --per_device_eval_batch_size 128 \
     --num_train_epochs 3\
