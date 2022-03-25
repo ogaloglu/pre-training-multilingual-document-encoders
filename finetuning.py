@@ -43,7 +43,7 @@ from transformers import (
 from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
 
-from utils import custom_tokenize, load_args, save_args, path_adder, preprocess_function, sliding_tokenize
+from utils import custom_tokenize, load_args, save_args, path_adder, preprocess_function
 from model_utils import freeze_base
 from data_collator import CustomDataCollator
 from models import HierarchicalClassificationModel
@@ -315,7 +315,7 @@ def main():
         if args.frozen:
             freeze_base(model)
 
-    if args.custom_model == "hierarchical":
+    if args.custom_model in ("hierarchical", "sliding_window"):
         with accelerator.main_process_first():
             # Modified
             ARTICLE_NUMBERS = 1
@@ -324,16 +324,6 @@ def main():
                 custom_tokenize,
                 fn_kwargs={"tokenizer": tokenizer, "args": args, "article_numbers": ARTICLE_NUMBERS},
                 num_proc=args.preprocessing_num_workers,
-                load_from_cache_file=False,
-                desc="Running tokenizer on dataset",
-            )
-    elif args.custom_model == "sliding_window":
-        with accelerator.main_process_first():
-            processed_datasets = raw_datasets.map(
-                sliding_tokenize,
-                fn_kwargs={"tokenizer": tokenizer, "args": args},
-                num_proc=args.preprocessing_num_workers,
-                remove_columns=raw_datasets["train"].column_names,
                 load_from_cache_file=False,
                 desc="Running tokenizer on dataset",
             )
