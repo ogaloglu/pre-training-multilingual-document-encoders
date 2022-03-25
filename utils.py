@@ -116,7 +116,7 @@ def path_adder(args: argparse.Namespace, finetuning: bool = False,
 
 
 def preprocess_function(examples: arrow_dataset.Batch, tokenizer):
-    # Tokenization function for the AutoModels
+    """Tokenization function for the AutoModels."""
     # https://huggingface.co/docs/transformers/preprocessing
     # TODO: make if statement
     # result = tokenizer(examples["text"], padding=True, truncation=True)
