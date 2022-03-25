@@ -304,6 +304,11 @@ def parse_arguments():
              "(rather than only after each epoch)."
     )
     parser.add_argument(
+        "--use_sliding_window_tokenization",
+        action="store_true",
+        help="If True, sliding window tokenization is used for splitting the articles."
+    )
+    parser.add_argument(
         "--upper_pooling",
         type=str,
         required=True,
