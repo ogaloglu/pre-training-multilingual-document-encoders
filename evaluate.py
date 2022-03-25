@@ -139,6 +139,9 @@ def main():
     # Argments from pretraining
     if args.custom_model == "hierarchical":
         pretrained_args = load_args(os.path.join(args.finetuned_dir, "pretrained_args.json"))
+        args.use_sliding_window_tokenization = getattr(pretrained_args , "use_sliding_window_tokenization", False)
+    elif args.custom_model == "sliding_window":
+        args.use_sliding_window_tokenization True
     finetuned_args = load_args(os.path.join(args.finetuned_dir, "args.json"))
 
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
