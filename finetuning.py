@@ -229,7 +229,7 @@ def main():
         pretrained_args = load_args(os.path.join(args.pretrained_dir, "args.json"))
         args.use_sliding_window_tokenization = getattr(pretrained_args , "use_sliding_window_tokenization", False)
     elif args.custom_model == "sliding_window":
-        args.use_sliding_window_tokenization True
+        args.use_sliding_window_tokenization = True
 
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
