@@ -104,22 +104,20 @@ def path_adder(args: argparse.Namespace, finetuning: bool = False,
                   )
     elif finetuning and custom_model == "hierarchical":
         i_path = (
-                  f"{args.model_name_or_path}{'_contrastive' if args.is_contrastive else ''}"
+                  f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}"
                   #f"{'_init' if c_args.custom_from_scratch else ''}__"
                   )
     else:
         i_path = (
-                  f"{MODEL_MAPPING[args.pretrained_dir]}"
+                  f"{MODEL_MAPPING[args.pretrained_dir]}_{args.max_seq_length}{'_frozen' if args.frozen else ''}"
                   f"{'_sliding_window' if args.custom_model ==  'sliding_window' else ''}__"
                   )
     return i_path
 
 
-def preprocess_function(examples: arrow_dataset.Batch, tokenizer):
+def preprocess_function(examples: arrow_dataset.Batch, tokenizer, max_seq_length: int):
     """Tokenization function for the AutoModels."""
-    # https://huggingface.co/docs/transformers/preprocessing
-    # TODO: make if statement
     # result = tokenizer(examples["text"], padding=True, truncation=True)
-    result = tokenizer(examples["text"], padding=True, truncation=True, max_length=128)
+    result = tokenizer(examples["text"], padding=True, truncation=True, max_length=max_seq_length)
     result["labels"] = examples["labels"]
     return result

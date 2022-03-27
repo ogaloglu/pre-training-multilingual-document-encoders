@@ -334,7 +334,7 @@ def main():
         with accelerator.main_process_first():
             processed_datasets = raw_datasets.map(
                 preprocess_function,
-                fn_kwargs={"tokenizer": tokenizer},
+                fn_kwargs={"tokenizer": tokenizer, "max_seq_length": args.max_seq_length},
                 batched=True,
                 num_proc=args.preprocessing_num_workers,
                 remove_columns=raw_datasets["train"].column_names,

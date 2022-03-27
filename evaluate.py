@@ -141,7 +141,7 @@ def main():
         pretrained_args = load_args(os.path.join(args.finetuned_dir, "pretrained_args.json"))
         args.use_sliding_window_tokenization = getattr(pretrained_args , "use_sliding_window_tokenization", False)
     elif args.custom_model == "sliding_window":
-        args.use_sliding_window_tokenization True
+        args.use_sliding_window_tokenization = True
     finetuned_args = load_args(os.path.join(args.finetuned_dir, "args.json"))
 
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
@@ -234,7 +234,7 @@ def main():
         with accelerator.main_process_first():
             test_dataset = test_dataset.map(
                 preprocess_function,
-                fn_kwargs={"tokenizer": tokenizer},
+                fn_kwargs={"tokenizer": tokenizer, "max_seq_length": args.max_seq_length},
                 batched=True,
                 num_proc=args.preprocessing_num_workers,
                 remove_columns=test_dataset.column_names,
