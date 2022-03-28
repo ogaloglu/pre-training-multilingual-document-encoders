@@ -20,7 +20,7 @@ def sliding_tokenize(article: str, tokenizer, args: argparse.Namespace) -> tuple
     sentences = tokenizer(article,
                           max_length=args.max_seq_length,
                           truncation=True,
-                          stride=42,  # TODO: add to args
+                          stride=args.stride,
                           return_overflowing_tokens=True,
                           padding=True)
 

@@ -315,10 +315,19 @@ def parse_arguments():
         choices=["mean", "dcls"],
         help="Determines to pooling method of the upper encoder."
     )
+    parser.add_argument(
+        "--stride",
+        type=int,
+        default=None,
+        help="The length of the stride, when sliding window approach is used.",
+    )
     args = parser.parse_args()
     # Sanity checks
     if args.dataset_name is None and args.train_file is None and args.validation_file is None:
         raise ValueError("Need either a dataset name or a training/validation file.")
+    
+    if args.use_sliding_window_tokenization and not args.stride:
+        raise ValueError("Need stride value for sliding window.")
 
     if args.push_to_hub:
         assert args.output_dir is not None, "Need an `output_dir` to create a repo when `--push_to_hub` is passed."
