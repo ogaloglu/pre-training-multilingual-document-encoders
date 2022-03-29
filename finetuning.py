@@ -450,7 +450,8 @@ def main():
         model.eval()
         for step, batch in enumerate(eval_dataloader):
             # Modified for Hierarchical Classification Model
-            outputs = model(**batch)
+            with torch.no_grad():
+                outputs = model(**batch)
             predictions = outputs.logits.argmax(dim=-1)
             metric.add_batch(
                 predictions=accelerator.gather(predictions),
