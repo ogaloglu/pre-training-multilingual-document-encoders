@@ -31,7 +31,7 @@ def cos_sim(a: Tensor, b: Tensor) -> Tensor:
 
 
 def freeze_base(model):
-    # For freezing base of the auto_models.
+    """For freezing base of the auto_models."""
     for param in model.base_model.parameters():
         param.requires_grad = False
 
@@ -54,8 +54,7 @@ def get_extended_attention_mask(attention_mask: Tensor) -> Tensor:
 
 
 def get_mean(upper_output: Tensor, document_mask: Tensor) -> Tensor:
-
-    # print(upper_output)
+    """For freezing base of the auto_models."""
     # document_mask has to be expanded to the shape of upper_output
     input_mask_expanded = document_mask.unsqueeze(-1).expand(upper_output.size()).float()
 

@@ -326,7 +326,7 @@ def parse_arguments():
     if args.dataset_name is None and args.train_file is None and args.validation_file is None:
         raise ValueError("Need either a dataset name or a training/validation file.")
     
-    if args.use_sliding_window_tokenization and not args.stride:
+    if args.use_sliding_window_tokenization and args.stride is None:
         raise ValueError("Need stride value for sliding window.")
 
     if args.push_to_hub:
@@ -389,13 +389,6 @@ def main():
 
     accelerator.wait_for_everyone()
 
-    # Get the datasets: you can either provide your own CSV/JSON/TXT training and evaluation files (see below)
-    # or just provide the name of one of the public datasets available on the hub at https://huggingface.co/datasets/
-    # (the dataset will be downloaded automatically from the datasets Hub).
-    #
-    # For CSV/JSON files, this script will use the column called 'text' or the first column if no column called
-    # 'text' is found. You can easily tweak this behavior (see below).
-    #
     # In distributed training, the load_dataset function guarantee that only one local process can concurrently
     # download the dataset.
     if args.dataset_name is not None:
@@ -419,11 +412,6 @@ def main():
         if args.validation_file is None:
             raw_datasets = raw_datasets.train_test_split(test_size=args.validation_split_percentage, seed=args.seed)
 
-    # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
-    # https://huggingface.co/docs/datasets/loading_datasets.html.
-
-    # Load pretrained model and tokenizer
-    #
     # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
     # TODO: move lower init here
@@ -572,7 +560,7 @@ def main():
                 completed_steps += 1
                 # Modified
                 running_loss += loss.item()
-                logger.info(f"epoch: {epoch}, step: {step+1}, batch_loss: {loss.item()}")
+                # logger.info(f"epoch: {epoch}, step: {step+1}, batch_loss: {loss.item()}")
 
             if step % args.logging_steps == args.logging_steps - 1:
                 # TODO change
@@ -625,21 +613,6 @@ def main():
             # TODO: change later to save only one time
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(args.output_dir)
-                # repo.push_to_hub(
-                #     commit_message=f"Training in progress epoch {epoch}", blocking=False, auto_lfs_prune=True
-                # )
-
-    # if args.output_dir is not None:
-    #     accelerator.wait_for_everyone()
-    #     unwrapped_model = accelerator.unwrap_model(model)
-    #     # Modified
-    #     accelerator.save(obj=unwrapped_model.hierarchical_model.state_dict(),
-    #                      f=args.output_dir + "/model.pth")
-    #     if accelerator.is_main_process:
-    #         tokenizer.save_pretrained(args.output_dir)
-    #         if args.push_to_hub:
-    #             repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
-
 
 if __name__ == "__main__":
     main()
