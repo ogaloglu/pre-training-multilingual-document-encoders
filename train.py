@@ -316,6 +316,13 @@ def parse_arguments():
         help="Determines to pooling method of the upper encoder."
     )
     parser.add_argument(
+        "--lower_pooling",
+        type=str,
+        default="cls",
+        choices=["mean", "cls"],
+        help="Determines to pooling method of the lower encoder."
+    )
+    parser.add_argument(
         "--stride",
         type=int,
         default=None,
@@ -481,9 +488,12 @@ def main():
 
     # DataLoaders creation:
     train_dataloader = DataLoader(
-        train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
+        train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size,
+        num_workers=4
     )
-    eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+    eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size,
+                                 num_workers=4
+    )
 
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
