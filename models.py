@@ -10,46 +10,50 @@ from transformers.models.bert.modeling_bert import BertEmbeddings, BertEncoder
 from model_utils import cos_sim, get_extended_attention_mask, get_mean, ContrastiveModelOutput
 
 
-class Pooler(nn.Module):
-    def __init__(self, config):
-        super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-        self.activation = nn.Tanh()
-
-    def forward(self, hidden_states):
-        pooled_output = self.dense(hidden_states)
-        pooled_output = self.activation(pooled_output)
-        return pooled_output
-
-
-# TODO: maybe inherit nn.Module?
 class LowerXLMREncoder(RobertaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
+        # Modified
+        config.model_type = "xlm-roberta"
         self.roberta = XLMRobertaModel(config)
-        #self.pooler = Pooler(config)
         # TODO: change to post_init()
         self.init_weights()
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
         model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None) 
-        output = model_output['last_hidden_state'][:, 0]  # (batch_size, hidden_size)
-        #output = self.pooler(output)
+        output = model_output['last_hidden_state']  # (batch_size, words, hidden_size)
         return output
+
+
+# class LowerXLMREncoder(nn.Module):
+#     def __init__(self, token_len):
+#         super().__init__()
+#         self.roberta = XLMRobertaModel.from_pretrained("xlm-roberta-base")
+#         self.roberta.resize_token_embeddings(token_len)
+
+#     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
+#         model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None) 
+#         output = model_output['last_hidden_state']  # (batch_size, words, hidden_size)
+#         return output
+
+#     @property
+#     def base_model(self) -> nn.Module:
+#         """
+#         `torch.nn.Module`: The main body of the model.
+#         """
+#         return getattr(self, "roberta")
 
 
 class LowerBertEncoder(BertPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.bert = BertModel(config)
-        #self.pooler = Pooler(config)
         # TODO: change to post_init()
         self.init_weights()
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
         model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None)
-        output = model_output['last_hidden_state'][:, 0]  # (batch_size, hidden_size)
-        #output = self.pooler(output)
+        output = model_output['last_hidden_state']  # (batch_size, words, hidden_size)
         return output
 
 
@@ -105,11 +109,12 @@ class HiearchicalModel(nn.Module):
     def __init__(self, args, tokenizer, **kwargs):
         super().__init__()
         # TODO: from pretrained or config
+        self.tokenizer = tokenizer
+
         self.lower_config = AutoConfig.from_pretrained(args.model_name_or_path)
         self.lower_model = self.lower_selector(args.model_name_or_path)
         self.lower_dropout = nn.Dropout(args.lower_dropout)
 
-        self.tokenizer = tokenizer
         self.lower_model.resize_token_embeddings(len(self.tokenizer))
 
         self.upper_config = AutoConfig.from_pretrained(args.model_name_or_path)
@@ -129,6 +134,9 @@ class HiearchicalModel(nn.Module):
         # Setting the pooling method of the upper encoder
         self.upper_pooling = getattr(args, "upper_pooling")
 
+        # Setting the pooling method of the upper encoder
+        self.lower_pooling = getattr(args, "lower_pooling")
+
     def forward(self, input_ids, attention_mask=None, dcls=None, document_mask=None):
         input_ids = input_ids.permute(1, 0, 2)  # (sentences, batch_size, words)
         attention_mask = attention_mask.permute(1, 0, 2)
@@ -136,6 +144,12 @@ class HiearchicalModel(nn.Module):
 
         for i_i, a_m in zip(input_ids, attention_mask):
             inter_output = self.lower_model(i_i, a_m)
+
+            if self.lower_pooling == "mean":
+                inter_output = get_mean(inter_output, a_m)  # (batch_size, hidden_size)
+            elif self.lower_pooling == "cls":
+                inter_output = inter_output[:, 0]  # (batch_size, hidden_size)
+
             inter_output = self.lower_dropout(inter_output)
             lower_encoded.append(inter_output)
 
@@ -170,8 +184,10 @@ class HiearchicalModel(nn.Module):
     def lower_selector(self, model_name):
         if self.lower_config.model_type == "xlm-roberta":
             lower_model = LowerXLMREncoder.from_pretrained(model_name)
+            # lower_model = LowerXLMREncoder(len(self.tokenizer))
         elif self.lower_config.model_type == "bert":
             lower_model = LowerBertEncoder.from_pretrained(model_name)
+            # lower_model.resize_token_embeddings(len(self.tokenizer))
         else:
             raise NotImplementedError("Respective model type is not supported.")
         return lower_model
