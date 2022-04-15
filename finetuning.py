@@ -55,13 +55,6 @@ require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/text
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Finetune the hierarchical model on a text classification task")
-    # parser.add_argument(
-    #     "--task_name",
-    #     type=str,
-    #     default=None,
-    #     help="The name of the glue task to train on.",
-    #     choices=list(task_to_keys.keys()),
-    # )
     parser.add_argument(
         "--train_file", type=str, default=None, help="A csv or a json file containing the training data."
     )
@@ -189,6 +182,12 @@ def parse_args():
         type=float,
         default=None,
         help="The dropout value of upper level encoder.",
+    )
+    parser.add_argument(
+        "--lower_dropout",
+        type=float,
+        default=0.1,
+        help="The dropout value of lower level encoder.",
     )
     parser.add_argument(
         "--logging_steps",
