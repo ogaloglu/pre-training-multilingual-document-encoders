@@ -348,7 +348,8 @@ def main():
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
     # Modified: for handling unsued parameters
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
-    accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
+    # accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
+    accelerator = Accelerator(fp16 = True, kwargs_handlers=[ddp_kwargs])
 
     # Modified: change the order
     # Handle the repository creation
