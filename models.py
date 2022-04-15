@@ -25,25 +25,6 @@ class LowerXLMREncoder(RobertaPreTrainedModel):
         return output
 
 
-# class LowerXLMREncoder(nn.Module):
-#     def __init__(self, token_len):
-#         super().__init__()
-#         self.roberta = XLMRobertaModel.from_pretrained("xlm-roberta-base")
-#         self.roberta.resize_token_embeddings(token_len)
-
-#     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
-#         model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None) 
-#         output = model_output['last_hidden_state']  # (batch_size, words, hidden_size)
-#         return output
-
-#     @property
-#     def base_model(self) -> nn.Module:
-#         """
-#         `torch.nn.Module`: The main body of the model.
-#         """
-#         return getattr(self, "roberta")
-
-
 class LowerBertEncoder(BertPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -61,23 +42,30 @@ class HiearchicalBaseModel(nn.Module):
     # To be used for sliding window approaches
     def __init__(self, args, tokenizer, **kwargs):
         super().__init__()
-        # TODO: from pretrained or config
         self.lower_config = AutoConfig.from_pretrained(args.pretrained_dir)
         self.lower_model = self.lower_selector(args.pretrained_dir)
-        # TODO: make here dynamic
-        self.lower_dropout = nn.Dropout(0.1)
+        self.lower_dropout = nn.Dropout(args.lower_dropout)
 
         # If True, freeze the lower encoder
         if args.frozen:
             self._freeze_lower()
 
-    def forward(self, input_ids, token_type_ids=None, attention_mask=None):
+        # Setting the pooling method of the upper encoder
+        self.lower_pooling = getattr(args, "lower_pooling", "cls")
+
+    def forward(self, input_ids, attention_mask=None, dcls=None, document_mask=None):
         input_ids = input_ids.permute(1, 0, 2)  # (sentences, batch_size, words)
         attention_mask = attention_mask.permute(1, 0, 2)
         lower_encoded = []
 
         for i_i, a_m in zip(input_ids, attention_mask):
             inter_output = self.lower_model(i_i, a_m)
+
+            if self.lower_pooling == "mean":
+                inter_output = get_mean(inter_output, a_m)  # (batch_size, hidden_size)
+            elif self.lower_pooling == "cls":
+                inter_output = inter_output[:, 0]  # (batch_size, hidden_size)
+
             inter_output = self.lower_dropout(inter_output)
             lower_encoded.append(inter_output)
 
@@ -85,8 +73,9 @@ class HiearchicalBaseModel(nn.Module):
         lower_output = lower_output.permute(1, 0, 2)  # (batch_size, sentences, hidden_size)
 
         # Mean Pooling
-        final_output = torch.mean(lower_output, 1)  # (batch_size, hidden_size)
-
+        # final_output = torch.mean(lower_output, 1)  # (batch_size, hidden_size)
+        final_output = get_mean(upper_output, document_mask)  # (batch_size, hidden_size)
+        
         return final_output
 
     def _freeze_lower(self):
@@ -108,7 +97,6 @@ class HiearchicalModel(nn.Module):
     # self.lower_model.base_model is a reference to self.lower_model.bert
     def __init__(self, args, tokenizer, **kwargs):
         super().__init__()
-        # TODO: from pretrained or config
         self.tokenizer = tokenizer
 
         self.lower_config = AutoConfig.from_pretrained(args.model_name_or_path)
@@ -135,7 +123,7 @@ class HiearchicalModel(nn.Module):
         self.upper_pooling = getattr(args, "upper_pooling")
 
         # Setting the pooling method of the upper encoder
-        self.lower_pooling = getattr(args, "lower_pooling")
+        self.lower_pooling = getattr(args, "lower_pooling", "cls")
 
     def forward(self, input_ids, attention_mask=None, dcls=None, document_mask=None):
         input_ids = input_ids.permute(1, 0, 2)  # (sentences, batch_size, words)
@@ -184,10 +172,8 @@ class HiearchicalModel(nn.Module):
     def lower_selector(self, model_name):
         if self.lower_config.model_type == "xlm-roberta":
             lower_model = LowerXLMREncoder.from_pretrained(model_name)
-            # lower_model = LowerXLMREncoder(len(self.tokenizer))
         elif self.lower_config.model_type == "bert":
             lower_model = LowerBertEncoder.from_pretrained(model_name)
-            # lower_model.resize_token_embeddings(len(self.tokenizer))
         else:
             raise NotImplementedError("Respective model type is not supported.")
         return lower_model
@@ -264,7 +250,9 @@ class HierarchicalClassificationModel(nn.Module):
         if c_args.custom_model == "hierarchical":
             self.hierarchical_model = HiearchicalModel(args, tokenizer)
             if not c_args.custom_from_scratch:
-                self.hierarchical_model.load_state_dict(torch.load(os.path.join(c_args.pretrained_dir, "model.pth")))
+                self.hierarchical_model.load_state_dict(torch.load(os.path.join(c_args.pretrained_dir, 
+                                                                                f"model_{c_args.pretrained_epoch}.pth"
+                                                                                )))
         elif c_args.custom_model == "sliding_window":
             self.hierarchical_model = HiearchicalBaseModel(c_args, tokenizer)
         else:
