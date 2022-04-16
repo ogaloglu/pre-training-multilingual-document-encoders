@@ -98,9 +98,9 @@ def path_adder(args: argparse.Namespace, finetuning: bool = False,
     # TODO: has to be refactored.
     if not finetuning:
         i_path = (
-                  f"{MODEL_MAPPING[args.model_name_or_path]}_{args.upper_num_layers}{'_frozen' if args.frozen else ''}"
-                  f"{'_hard' if args.use_hard_negatives else ''}_{args.per_device_train_batch_size}"
-                  f"{'_sliding_window' if args.use_sliding_window_tokenization else ''}"
+                  f"{MODEL_MAPPING[args.model_name_or_path]}_{'dummy_' if 'large' in args.train_file else ''}{args.upper_num_layers}"
+                  f"{'_frozen' if args.frozen else ''}{'_hard' if args.use_hard_negatives else ''}_"
+                  f"{args.per_device_train_batch_size}{'_sliding_window' if args.use_sliding_window_tokenization else ''}"
                   f"_{args.lower_pooling}_{args.upper_pooling}_{args.learning_rate}_"
                   )
     elif finetuning and custom_model == "hierarchical":
