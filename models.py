@@ -74,7 +74,7 @@ class HiearchicalBaseModel(nn.Module):
 
         # Mean Pooling
         # final_output = torch.mean(lower_output, 1)  # (batch_size, hidden_size)
-        final_output = get_mean(upper_output, document_mask)  # (batch_size, hidden_size)
+        final_output = get_mean(lower_output, document_mask)  # (batch_size, hidden_size)
         
         return final_output
 
