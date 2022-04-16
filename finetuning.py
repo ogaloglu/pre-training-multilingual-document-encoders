@@ -190,6 +190,12 @@ def parse_args():
         help="The dropout value of lower level encoder.",
     )
     parser.add_argument(
+        "--pretrained_epoch",
+        type=int,
+        default=2,
+        help="Checkpoint from pretraining to use.",
+    )
+    parser.add_argument(
         "--logging_steps",
         type=int,
         default=500,
