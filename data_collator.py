@@ -46,7 +46,8 @@ class CustomDataCollator:
                 document_mask = [1] * len(masks)
                 self.pad_document(sentences, masks, document_mask, doc_len)
                 # Modified: For DCLS token
-                document_mask = [1] + document_mask
+                if self.consider_dcls:
+                    document_mask = [1] + document_mask
 
                 batch_sentences.append(sentences)
                 batch_masks.append(masks)
