@@ -29,6 +29,7 @@ class LongModelSelfAttention(LongformerSelfAttention):
             * -10000: no attention
             * 0: local attention
             * +10000: global attention
+        Taken from https://github.com/allenai/longformer/blob/2fb7b11df5319801742b23a407b8abb302d15750/scripts/convert_model_to_long.ipynb
         """
         hidden_states = hidden_states.transpose(0, 1)
 
