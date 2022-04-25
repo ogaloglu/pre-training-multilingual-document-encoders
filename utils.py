@@ -12,7 +12,8 @@ MODEL_MAPPING = {
     "bert-base-multilingual-cased": "mbert",
     "xlm-roberta-base": "xlmr",
     "sentence-transformers/LaBSE": "labse",
-    "markussagen/xlm-roberta-longformer-base-4096" : "markussagen-longformer"
+    "markussagen/xlm-roberta-longformer-base-4096" : "markussagen-longformer",
+    "roberta-base": "roberta"
 }
 
 
