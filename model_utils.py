@@ -120,12 +120,6 @@ def pretrained_model_selector(seed_model: str) -> PreTrainedModel:
     return PRETRAINED_MODEL
 
 
-import copy
-import torch
-
-from transformers import XLMRobertaForMaskedLM, BertForMaskedLM, RobertaForMaskedLM, PreTrainedModel, BertModel, RobertaModel, XLMRobertaModel, AutoTokenizer, AutoModelForMaskedLM
-from transformers.models.longformer.modeling_longformer import LongformerSelfAttention
-
 def create_long_model(seed_model, save_model_to, attention_window, max_pos):
     """Modified: all roberta -> base_model."""
 
