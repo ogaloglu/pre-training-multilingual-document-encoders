@@ -99,7 +99,7 @@ def pretrained_masked_model_selector(seed_model: str) -> PreTrainedModel:
         PRETRAINED_MODEL = XLMRobertaForMaskedLM
     elif seed_model == "roberta-base":
         PRETRAINED_MODEL = RobertaForMaskedLM
-    elif seed_model == "sentence-transformers/LaBSE":
+    elif seed_model in ("sentence-transformers/LaBSE", "bert-base-multilingual-cased"):
         PRETRAINED_MODEL = BertForMaskedLM
     else:
         raise NotImplementedError(
@@ -112,7 +112,7 @@ def pretrained_model_selector(seed_model: str) -> PreTrainedModel:
         PRETRAINED_MODEL = XLMRobertaModel
     elif seed_model == "roberta-base":
         PRETRAINED_MODEL = RobertaModel
-    elif seed_model == "sentence-transformers/LaBSE":
+    elif seed_model in ("sentence-transformers/LaBSE", "bert-base-multilingual-cased"):
         PRETRAINED_MODEL = BertModel
     else:
         raise NotImplementedError(
