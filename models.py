@@ -260,9 +260,10 @@ class HierarchicalClassificationModel(nn.Module):
 
         self.num_labels = num_labels
 
-        # TODO: change
         if c_args.dropout is not None:
             self.dropout = nn.Dropout(c_args.dropout)
+        else:
+            self.drpotout = None
 
         # For freezing/unfreezing the whole HierarchicalModel
         if c_args.unfreeze:
@@ -279,7 +280,8 @@ class HierarchicalClassificationModel(nn.Module):
                                            document_mask=document_mask_1
                                            )  # (batch_size, hidden_size)
 
-        output = self.dropout(output)
+        if self.dropout is not None:
+            output = self.dropout(output)
         logits = self.classifier(output)
 
         # Modified: For clef ranking task.
