@@ -67,7 +67,7 @@ class CustomDataCollator:
 
             # Modified for compatibility with CrossEncoder batching scheme
             if self.target_device is not None:
-                batch = {k: t.to(target_device) for k, t in batch.items()}
+                batch = {k: t.to(self.target_device) for k, t in batch.items()}
 
         return batch
 
