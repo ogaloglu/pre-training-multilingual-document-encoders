@@ -286,8 +286,8 @@ class HierarchicalClassificationModel(nn.Module):
             loss_fct = nn.CrossEntropyLoss()
             loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
         else:
-            loss_fct = nn.BCEWithLogitsLoss()
-            loss = loss_fct(logits, labels)
+            loss_fct = nn.MSELoss()
+            loss = loss_fct(logits.squeeze(), labels.squeeze())
 
         return SequenceClassifierOutput(
             loss=loss,
