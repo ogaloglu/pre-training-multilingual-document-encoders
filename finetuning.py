@@ -293,8 +293,6 @@ def main():
 
     # Modified:
     raw_datasets = load_from_disk(args.train_file)
-    # if args.validation_file is None:
-    #     raw_datasets = raw_datasets.train_test_split(test_size=args.validation_split_percentage, seed=args.seed)
 
     # Labels
     # Modified
@@ -307,7 +305,6 @@ def main():
     # TODO: additional condition for model type
     tokenizer = AutoTokenizer.from_pretrained(args.pretrained_dir,
                                               use_fast=not args.use_slow_tokenizer)
-    # tokenizer.add_tokens(["[DCLS]"])
 
     if args.custom_model in ("hierarchical", "sliding_window"):
         model = HierarchicalClassificationModel(c_args=args,
