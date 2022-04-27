@@ -16,6 +16,7 @@ class CustomDataCollator:
     max_document_len: int = 32
     return_tensors: str = "pt"
     consider_dcls: bool = True
+    target_device: str = None
 
     def __call__(self, features: list) -> dict:
         batch = {}
@@ -63,6 +64,10 @@ class CustomDataCollator:
             # Modified for classification task
             if "labels" in features[0]:
                 batch["labels"] = torch.tensor([f["labels"] for f in features], dtype=torch.int64)
+
+            # Modified for compatibility with CrossEncoder batching scheme
+            if self.target_device is not None:
+                batch = {k: t.to(target_device) for k, t in batch.items()}
 
         return batch
 
