@@ -263,7 +263,7 @@ class HierarchicalClassificationModel(nn.Module):
         if c_args.dropout is not None:
             self.dropout = nn.Dropout(c_args.dropout)
         else:
-            self.drpotout = None
+            self.dropout = None
 
         # For freezing/unfreezing the whole HierarchicalModel
         if c_args.unfreeze:
