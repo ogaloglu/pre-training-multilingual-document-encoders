@@ -88,14 +88,15 @@ def main():
         '--learning_rate', '0.00003',
         '--weight_decay', '0.01',
         '--adam_epsilon', '1e-6',
-        '--max_steps', '3000',
-        '--logging_steps', '500',
+        #'--max_steps', '3000',
+        '--num_train_epochs', '1',
+        '--logging_steps', '5000',
         '--prediction_loss_only','True',
         '--save_steps', '500',
         '--max_grad_norm', '5.0',
         '--per_device_eval_batch_size', '1', # 8 
         '--per_device_train_batch_size', '1',  # total: 64
-        '--gradient_accumulation_steps', '64',
+        '--gradient_accumulation_steps', '32', # 64
         '--evaluation_strategy','steps',
         '--do_train',
         '--do_eval',
@@ -125,7 +126,6 @@ def main():
     model = model.from_pretrained(training_args.output_dir)
 
     logger.info(f'Pretraining {MODEL_MAPPING[model_args.seed_model]}-{model_args.max_pos} ... ')
-    training_args.max_steps = 3 ## <<<<<<<<<<<<<<<<<<<<<<<< REMOVE THIS <<<<<<<<<<<<<<<<<<<<<<<<
     pretrain_and_evaluate(args=training_args, model=model, tokenizer=tokenizer, eval_only=False, 
                           model_path=training_args.output_dir, max_seq_length=model_args.max_pos, num_proc=32,
                           val_raw_dataset=dataset["test"], train_raw_dataset=dataset["train"])
