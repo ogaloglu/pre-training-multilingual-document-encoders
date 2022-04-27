@@ -272,7 +272,7 @@ class HierarchicalClassificationModel(nn.Module):
 
         self.classifier = nn.Linear(self.hierarchical_model.lower_config.hidden_size, self.num_labels)
 
-    def forward(self, article_1, mask_1, dcls_1, document_mask_1, labels):
+    def forward(self, article_1, mask_1, dcls_1, document_mask_1, labels=None):
         output = self.hierarchical_model(input_ids=article_1,
                                            attention_mask=mask_1,
                                            dcls=dcls_1,
@@ -282,12 +282,15 @@ class HierarchicalClassificationModel(nn.Module):
         output = self.dropout(output)
         logits = self.classifier(output)
 
-        if self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
-            loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
-        else:
-            loss_fct = nn.MSELoss()
-            loss = loss_fct(logits.squeeze(), labels.squeeze())
+        # Modified: For clef ranking task.
+        loss = None
+        if labels is not None:
+            if self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
+                loss_fct = nn.CrossEntropyLoss()
+                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            else:
+                loss_fct = nn.MSELoss()
+                loss = loss_fct(logits.squeeze(), labels.squeeze())
 
         return SequenceClassifierOutput(
             loss=loss,
