@@ -41,10 +41,7 @@ from accelerate import Accelerator, DistributedType, DistributedDataParallelKwar
 from huggingface_hub import Repository
 from tokenizers import Tokenizer
 from transformers import (
-    CONFIG_MAPPING,
-    MODEL_MAPPING,
     AdamW,
-    AutoConfig,
     AutoTokenizer,
     BertTokenizerFast,
     get_scheduler,
@@ -59,8 +56,6 @@ from utils import custom_tokenize, save_args, path_adder
 
 logger = logging.getLogger(__name__)
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt")
-MODEL_CONFIG_CLASSES = list(MODEL_MAPPING.keys())
-MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 
 
 def parse_arguments():
@@ -416,20 +411,9 @@ def main():
     else:
         # Modified for loading dataset from disk
         raw_datasets = load_from_disk(args.train_file)
-        # If no validation data is there, validation_split_percentage will be used to divide the dataset.
-        if args.validation_file is None:
-            raw_datasets = raw_datasets.train_test_split(test_size=args.validation_split_percentage, seed=args.seed)
-
-    # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
-    # download model & vocab.
-    # TODO: move lower init here
-    if args.config_name:
-        config = AutoConfig.from_pretrained(args.config_name)
-    elif args.model_name_or_path:
-        config = AutoConfig.from_pretrained(args.model_name_or_path)
-    else:
-        config = CONFIG_MAPPING[args.model_type]()
-        logger.warning("You are instantiating a new config instance from scratch.")
+        # # If no validation data is there, validation_split_percentage will be used to divide the dataset.
+        # if args.validation_file is None:
+        #     raw_datasets = raw_datasets.train_test_split(test_size=args.validation_split_percentage, seed=args.seed)
 
     # Modified for custom tokenizer file
     if args.tokenizer_name:
@@ -490,10 +474,10 @@ def main():
     # DataLoaders creation:
     train_dataloader = DataLoader(
         train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size,
-        num_workers=4
+        # num_workers=2, pin_memory=True
     )
     eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size,
-                                 num_workers=4
+                                 # num_workers=2, pin_memory=True
     )
 
     # Optimizer
