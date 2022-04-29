@@ -191,10 +191,10 @@ class CrossEncoder(CrossEncoder):
         return pred_scores
 
     def custom_batching(self, batch: list[list[str]]):
+        """Shapes the input into the format so that the tokenizers of hierarchical models can process it."""
         processed_batch = list()
-
         for example in batch:
-            tmp = " ".join([text.strip() for text in example])
+            tmp = "[SEP]".join([text.strip() for text in example])
             tmp_dict = {"article_1": tmp}
             tokenized = custom_tokenize(tmp_dict, self.tokenizer, self.pretrained_args, article_numbers=1)
             processed_batch.append(tokenized)
