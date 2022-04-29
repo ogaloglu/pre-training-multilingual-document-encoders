@@ -106,7 +106,12 @@ def path_adder(args: argparse.Namespace, finetuning: bool = False,
                   )
     elif finetuning and custom_model == "hierarchical":
         i_path = (
-                  f"{MODEL_MAPPING[args.model_name_or_path]}{'_contrastive' if args.is_contrastive else ''}"
+                  f"{MODEL_MAPPING[args.model_name_or_path]}_{'contrastive' if args.is_contrastive else ''}"
+                  #f"{'_init' if c_args.custom_from_scratch else ''}__"
+                  )
+    elif finetuning and custom_model == "longformer":
+        i_path = (
+                  f"{args.pretrained_dir.split('/')[-1]}_"#{'_contrastive' if args.is_contrastive else ''}"
                   #f"{'_init' if c_args.custom_from_scratch else ''}__"
                   )
     else:
