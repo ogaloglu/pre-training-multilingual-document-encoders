@@ -3,6 +3,7 @@ import argparse
 import os
 import json
 from collections import namedtuple
+from typing import Union
 
 from nltk import sent_tokenize
 from datasets import arrow_dataset
@@ -31,7 +32,12 @@ def sliding_tokenize(article: str, tokenizer, args: argparse.Namespace) -> tuple
 
 def tokenize_helper(article: str, tokenizer, args: argparse.Namespace) -> tuple:
     """Tokenization function for sentence splitting approach."""
-    sentences = [tokenizer.encode(sentence, add_special_tokens=False) for sentence in sent_tokenize(article)]
+    if getattr(args, "task", None) is None:
+        sentences = [tokenizer.encode(sentence, add_special_tokens=False) for sentence in sent_tokenize(article)]
+    elif getattr(args, "task") == "retrieval":
+        query, document = article.split("[SEP]")
+        sentences = [query] + sent_tokenize(document)
+        sentences = [tokenizer.encode(sentence, add_special_tokens=False) for sentence in sentences]
     sentences = [sentence[:args.max_seq_length - 2] for sentence in sentences]
     sentences = [[tokenizer.convert_tokens_to_ids(tokenizer.cls_token)] + sentence +
                  [tokenizer.convert_tokens_to_ids(tokenizer.sep_token)] for sentence in sentences]
@@ -42,7 +48,7 @@ def tokenize_helper(article: str, tokenizer, args: argparse.Namespace) -> tuple:
     return sentences, mask
 
 
-def custom_tokenize(example: arrow_dataset.Example, tokenizer,
+def custom_tokenize(example: Union[arrow_dataset.Example, dict], tokenizer,
                     args: argparse.Namespace, article_numbers: int) -> arrow_dataset.Example:
     """Controller function for tokenization."""
     if args.use_sliding_window_tokenization:

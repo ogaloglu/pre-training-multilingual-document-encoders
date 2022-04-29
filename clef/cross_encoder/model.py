@@ -196,6 +196,7 @@ class CrossEncoder(CrossEncoder):
         for example in batch:
             tmp = "[SEP]".join([text.strip() for text in example])
             tmp_dict = {"article_1": tmp}
+            self.pretrained_args.task = "retrieval"
             tokenized = custom_tokenize(tmp_dict, self.tokenizer, self.pretrained_args, article_numbers=1)
             processed_batch.append(tokenized)
         return processed_batch
