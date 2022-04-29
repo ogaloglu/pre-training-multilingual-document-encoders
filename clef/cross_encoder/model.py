@@ -74,7 +74,7 @@ class CrossEncoder(CrossEncoder):
                                                     num_labels=num_labels)
             self.config = CustomConfig(num_labels=num_labels)
         elif self.custom_model == "longformer":
-            self.config = AutoConfig.from_pretrained(model_name+"/checkpoint-5000")
+            self.config = AutoConfig.from_pretrained(model_name + self.hierarchical_args.pretrained_epoch)
             self.config.num_labels = num_labels
             self.model = AutoModelForSequenceClassification.from_pretrained(
                 model_name,

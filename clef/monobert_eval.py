@@ -20,7 +20,7 @@ parser.add_argument("--dropout", type=float, default=None)
 parser.add_argument("--unfreeze", action="store_true")
 parser.add_argument("--freeze", action="store_true")
 parser.add_argument("--custom_from_scratch", action="store_true")
-parser.add_argument("--pretrained_epoch", type=int, required=False)
+parser.add_argument("--pretrained_epoch", type=str, required=False)
 
 args = parser.parse_args()
 
@@ -52,7 +52,7 @@ def _evaluate_single_baseline(own_model, mode):
   if args.custom_model in ("hierarchical", "sliding_window"):
     reranker = CrossEncoder(model_name_path, hierarchical_args=args)
   elif args.custom_model == "longformer":
-    reranker = CrossEncoder(model_name_path, max_length=4096)
+    reranker = CrossEncoder(model_name_path, max_length=4096, hierarchical_args=args)
   else:
     reranker = CrossEncoder(model_name_path, max_length=512)
   
