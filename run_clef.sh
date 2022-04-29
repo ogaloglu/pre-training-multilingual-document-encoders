@@ -8,9 +8,10 @@ GPU=3
 
 # MODEL_DIR=/work-ceph/ogalolu/models/trained_models/labse_2_frozen_hard_128_cls_mean_0.0005_2022_04_19-12_31_23
 # CUSTOM_MODEL=hierarchical
+# PRETRAINED_EPOCH=2
 
 MODEL_DIR=/work-ceph/ogalolu/models/long_models/labse-4096
 CUSTOM_MODEL=longformer
-PRETRAINED_EPOCH=2
+PRETRAINED_EPOCH=/checkpoint-5000
 
 python clef/monobert_eval.py --model_dir $MODEL_DIR --prerank_dir $PRERANKING_DIR --mode clir --gpu $GPU --custom_model $CUSTOM_MODEL --pretrained_epoch $PRETRAINED_EPOCH
