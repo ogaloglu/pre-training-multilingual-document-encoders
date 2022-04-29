@@ -5,7 +5,20 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor
 from transformers.file_utils import ModelOutput
-from transformers import XLMRobertaForMaskedLM, BertForMaskedLM, RobertaForMaskedLM, PreTrainedModel, BertModel, RobertaModel, XLMRobertaModel, AutoTokenizer, AutoModelForMaskedLM
+from transformers import (
+    XLMRobertaForMaskedLM,
+    BertForMaskedLM, 
+    RobertaForMaskedLM, 
+    PreTrainedModel, 
+    BertModel, 
+    RobertaModel, 
+    XLMRobertaModel, 
+    AutoTokenizer, 
+    AutoModelForMaskedLM,
+    XLMRobertaForSequenceClassification,
+    RobertaForSequenceClassification,
+    BertForSequenceClassification
+)
 from transformers.models.longformer.modeling_longformer import LongformerSelfAttention
 
 
@@ -114,6 +127,19 @@ def pretrained_model_selector(seed_model: str) -> PreTrainedModel:
         PRETRAINED_MODEL = RobertaModel
     elif seed_model in ("sentence-transformers/LaBSE", "bert-base-multilingual-cased"):
         PRETRAINED_MODEL = BertModel
+    else:
+        raise NotImplementedError(
+        "Other models are not supported")
+    return PRETRAINED_MODEL
+
+
+def pretrained_sequence_model_selector(seed_model: str) -> PreTrainedModel: 
+    if seed_model == "xlm-roberta-base":
+        PRETRAINED_MODEL = XLMRobertaForSequenceClassification
+    elif seed_model == "roberta-base":
+        PRETRAINED_MODEL = RobertaForSequenceClassification
+    elif seed_model in ("sentence-transformers/LaBSE", "bert-base-multilingual-cased"):
+        PRETRAINED_MODEL = BertForSequenceClassification
     else:
         raise NotImplementedError(
         "Other models are not supported")
