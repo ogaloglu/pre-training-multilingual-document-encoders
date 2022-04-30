@@ -248,6 +248,11 @@ class HierarchicalClassificationModel(nn.Module):
     def __init__(self, c_args, args, tokenizer, num_labels, **kwargs):
         super().__init__()
         if c_args.custom_model == "hierarchical":
+            # Modified: Now, different upper/lower pooling options than the pretrained model can be given.
+            if getattr(c_args, "upper_pooling", None) is not None:
+                args.upper_pooling = c_args.upper_pooling
+            if getattr(c_args, "lower_pooling", None) is not None:
+                args.lower_pooling = c_args.lower_pooling            
             self.hierarchical_model = HiearchicalModel(args, tokenizer)
             if not c_args.custom_from_scratch:
                 self.hierarchical_model.load_state_dict(torch.load(os.path.join(c_args.pretrained_dir, 
