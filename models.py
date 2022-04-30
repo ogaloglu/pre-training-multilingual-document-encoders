@@ -13,7 +13,7 @@ from model_utils import cos_sim, get_extended_attention_mask, get_mean, Contrast
 class LowerXLMREncoder(RobertaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
-        ## Modified
+        # Modified
         config.model_type = "xlm-roberta"
         self.roberta = XLMRobertaModel(config)
         # TODO: change to post_init()
@@ -39,18 +39,18 @@ class LowerBertEncoder(BertPreTrainedModel):
 
 
 class HiearchicalBaseModel(nn.Module):
-    ## To be used for sliding window approaches
+    # To be used for sliding window approaches
     def __init__(self, args, tokenizer, **kwargs):
         super().__init__()
         self.lower_config = AutoConfig.from_pretrained(args.pretrained_dir)
         self.lower_model = self.lower_selector(args.pretrained_dir)
         self.lower_dropout = nn.Dropout(args.lower_dropout)
 
-        ## If True, freeze the lower encoder
+        # If True, freeze the lower encoder
         if args.frozen:
             self._freeze_lower()
 
-        ## Setting the pooling method of the upper encoder
+        # Setting the pooling method of the upper encoder
         self.lower_pooling = getattr(args, "lower_pooling", "cls")
 
     def forward(self, input_ids, attention_mask=None, dcls=None, document_mask=None):
@@ -72,7 +72,7 @@ class HiearchicalBaseModel(nn.Module):
         lower_output = torch.stack(lower_encoded)  # (sentences, batch_size, hidden_size)
         lower_output = lower_output.permute(1, 0, 2)  # (batch_size, sentences, hidden_size)
 
-        ## Mean Pooling
+        # Mean Pooling
         # final_output = torch.mean(lower_output, 1)  # (batch_size, hidden_size)
         final_output = get_mean(lower_output, document_mask)  # (batch_size, hidden_size)
         
@@ -94,7 +94,7 @@ class HiearchicalBaseModel(nn.Module):
 
 # TODO: Inherit from HiearchicalBaseModel, memory issues
 class HiearchicalModel(nn.Module):
-    ## self.lower_model.base_model is a reference to self.lower_model.bert
+    # self.lower_model.base_model is a reference to self.lower_model.bert
     def __init__(self, args, tokenizer, **kwargs):
         super().__init__()
         self.tokenizer = tokenizer
@@ -108,21 +108,21 @@ class HiearchicalModel(nn.Module):
         self.upper_config = AutoConfig.from_pretrained(args.model_name_or_path)
         self.update_config(args)
 
-        ## Initiliaze custom Bert model with updated config
+        # Initiliaze custom Bert model with updated config
         self.upper_embeddings = BertEmbeddings(self.upper_config)
         self.upper_encoder = BertEncoder(self.upper_config)
 
-        ## If True, freeze the lower encoder
+        # If True, freeze the lower encoder
         if args.frozen:
             self._freeze_lower()
 
-        ## If positional encoding will be used in upper encoder or not
+        # If positional encoding will be used in upper encoder or not
         self.upper_positional = getattr(args, "upper_positional", True)
 
-        ## Setting the pooling method of the upper encoder
+        # Setting the pooling method of the upper encoder
         self.upper_pooling = getattr(args, "upper_pooling")
 
-        ## Setting the pooling method of the upper encoder
+        # Setting the pooling method of the upper encoder
         self.lower_pooling = getattr(args, "lower_pooling", "cls")
 
     def forward(self, input_ids, attention_mask=None, dcls=None, document_mask=None):
@@ -150,7 +150,7 @@ class HiearchicalModel(nn.Module):
         if self.upper_positional:
             lower_output = self.upper_embeddings(inputs_embeds=lower_output)
 
-        ## Added upper encoder level attention mask
+        # Added upper encoder level attention mask
         extended_document_mask = get_extended_attention_mask(document_mask)
         encoder_output = self.upper_encoder(hidden_states=lower_output,
                                             attention_mask=extended_document_mask)  # (batch_size, sentences, hidden_size)
@@ -248,8 +248,8 @@ class HierarchicalClassificationModel(nn.Module):
     def __init__(self, c_args, args, tokenizer, num_labels, **kwargs):
         super().__init__()
         if c_args.custom_model == "hierarchical":
-            ## Modified: Now, different upper/lower pooling options than the pretrained model can be given.
-            ## Note that "args" has a type "namedtuple"
+            # Modified: Now, different upper/lower pooling options than the pretrained model can be given.
+            # Note that "args" has a type "namedtuple"
             if getattr(c_args, "upper_pooling", None) is not None:
                 # args.upper_pooling = c_args.upper_pooling
                 args._replace(upper_pooling=c_args.upper_pooling)
@@ -273,7 +273,7 @@ class HierarchicalClassificationModel(nn.Module):
         else:
             self.dropout = None
 
-        ## For freezing/unfreezing the whole HierarchicalModel
+        # For freezing/unfreezing the whole HierarchicalModel
         if c_args.unfreeze:
             self._unfreeze_model()
         elif c_args.freeze:
@@ -292,7 +292,7 @@ class HierarchicalClassificationModel(nn.Module):
             output = self.dropout(output)
         logits = self.classifier(output)
 
-        ## Modified: For clef ranking task.
+        # Modified: For clef ranking task.
         loss = None
         if labels is not None:
             if self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
