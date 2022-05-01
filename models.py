@@ -251,11 +251,9 @@ class HierarchicalClassificationModel(nn.Module):
             # Modified: Now, different upper/lower pooling options than the pretrained model can be given.
             # Note that "args" has a type "namedtuple"
             if getattr(c_args, "upper_pooling", None) is not None:
-                # args.upper_pooling = c_args.upper_pooling
-                args._replace(upper_pooling=c_args.upper_pooling)
-            if getattr(c_args, "lower_pooling", None) is not None:
-                # args.lower_pooling = c_args.lower_pooling           
-                args._replace(lower_pooling=c_args.lower_pooling) 
+                args = args._replace(upper_pooling=c_args.upper_pooling)
+            if getattr(c_args, "lower_pooling", None) is not None:       
+                args = args._replace(lower_pooling=c_args.lower_pooling) 
             self.hierarchical_model = HiearchicalModel(args, tokenizer)
             if not c_args.custom_from_scratch:
                 self.hierarchical_model.load_state_dict(torch.load(os.path.join(c_args.pretrained_dir, 
