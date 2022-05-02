@@ -134,3 +134,12 @@ def preprocess_function(examples: arrow_dataset.Batch, tokenizer, max_seq_length
     result = tokenizer(examples["text"], padding=True, truncation=True, max_length=max_seq_length)
     result["labels"] = examples["labels"]
     return result
+
+
+def select_base(pretrained_path: str) -> str:
+    """ Returns the base model type for the given path."""
+    def select_base(pretrained_path):
+        for key, value in MODEL_MAPPING.items():
+            if value in pretrained_path:
+                return key
+        raise ValueError("Respective path does not contain any supported model.")
