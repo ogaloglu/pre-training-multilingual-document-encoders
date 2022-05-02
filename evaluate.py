@@ -40,9 +40,11 @@ from transformers import (
 from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
 
-from utils import custom_tokenize, load_args, path_adder, preprocess_function
+from utils import custom_tokenize, load_args, path_adder, preprocess_function, MODEL_MAPPING, select_base
 from data_collator import CustomDataCollator
 from models import HierarchicalClassificationModel
+from model_utils import copy_proj_layers, pretrained_masked_model_selector, pretrained_model_selector, pretrained_sequence_model_selector
+from longformer import get_attention_injected_model
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +119,7 @@ def parse_args():
         type=str,
         help="If a custom model is to be used, the model type has to be specified.",
         default=None,
-        choices=["hierarchical", "sliding_window"]
+        choices=["hierarchical", "sliding_window", "longformer"]
     )
     args = parser.parse_args()
 
@@ -203,7 +205,16 @@ def main():
     label_list.sort()  # Let's sort it for determinism
     num_labels = len(label_list)
 
-    tokenizer = AutoTokenizer.from_pretrained(args.finetuned_dir, use_fast=not args.use_slow_tokenizer)
+    if args.custom_model == "longformer":
+        tokenizer = AutoTokenizer.from_pretrained(
+        args.finetuned_dir,
+        max_length=args.max_seq_length,
+        padding="max_length",
+        truncation=True,
+        )
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(args.finetuned_dir,
+                                                  use_fast=True)
 
     if args.custom_model in ("hierarchical", "sliding_window"):
         model = HierarchicalClassificationModel(c_args=finetuned_args,
@@ -211,6 +222,14 @@ def main():
                                                 tokenizer=tokenizer,
                                                 num_labels=num_labels)
         model.load_state_dict(torch.load(os.path.join(args.finetuned_dir, "model.pth")))
+    elif args.custom_model == "longformer":
+        psm = pretrained_sequence_model_selector(select_base(args.finetuned_dir))
+        model = get_attention_injected_model(psm)
+        model = model.from_pretrained(
+            args.finetuned_dir, 
+            max_length=args.max_seq_length,
+            num_labels=num_labels
+        )   
     else:
         config = AutoConfig.from_pretrained(args.finetuned_dir, num_labels=num_labels)
         model = AutoModelForSequenceClassification.from_pretrained(
@@ -255,6 +274,8 @@ def main():
                                            max_document_len=pretrained_args.max_document_length if args.max_document_length is None else args.max_document_length,
                                            article_numbers=ARTICLE_NUMBERS,
                                            consider_dcls=True if args.custom_model == "hierarchical" else False)
+    elif args.custom_model == "longformer":
+        data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=512)    
     else:
         data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=(8 if accelerator.use_fp16 else None))
 
