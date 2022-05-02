@@ -43,10 +43,12 @@ from transformers import (
 from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
 
-from utils import custom_tokenize, load_args, save_args, path_adder, preprocess_function
-from model_utils import freeze_base
+from utils import custom_tokenize, load_args, save_args, path_adder, preprocess_function, MODEL_MAPPING, select_base
+from model_utils import freeze_base, copy_proj_layers, pretrained_masked_model_selector, pretrained_model_selector, pretrained_sequence_model_selector
 from data_collator import CustomDataCollator
 from models import HierarchicalClassificationModel
+from longformer import get_attention_injected_model
+
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +163,6 @@ def parse_args():
         help="The maximum number of sentences each document can have. Documents are either truncated or"
              "padded if their length is different.",
     )
-    # TODO: change
     parser.add_argument(
         "--frozen",
         action="store_true",
@@ -206,12 +207,36 @@ def parse_args():
         type=str,
         help="If a custom model is to be used, the model type has to be specified.",
         default=None,
-        choices=["hierarchical", "sliding_window"]
+        choices=["hierarchical", "sliding_window", "longformer"]
     )
     parser.add_argument(
         "--custom_from_scratch",
         action="store_true",
         help="If True, then the custom model is not initilazed from the previously pretrained model."
+    )
+    parser.add_argument(
+        "--stride",
+        type=int,
+        default=None,
+        help="The length of the stride, when sliding window approach is used.",
+    )
+    parser.add_argument(
+        "--lower_pooling",
+        type=str,
+        default=None,
+        help="The pooling to be used for the lower level encoder.",
+    )
+    parser.add_argument(
+        "--upper_pooling",
+        type=str,
+        default=None,
+        help="The pooling to be used for the upper level encoder.",
+    )
+    parser.add_argument(
+        "--max_patience",
+        type=int,
+        default=7,
+        help="The number of epochs to wait before early stopping.",
     )
     args = parser.parse_args()
 
@@ -253,6 +278,8 @@ def main():
             # TODO: refactor
             if args.custom_model == "hierarchical":
                 inter_path = path_adder(pretrained_args, finetuning=True, custom_model=args.custom_model, c_args=args)
+            elif args.custom_model == "longformer":
+                inter_path = path_adder(args, finetuning=True, custom_model=args.custom_model, c_args=args)
             else:
                 inter_path = path_adder(args, finetuning=True)
             inter_path += datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
@@ -303,14 +330,30 @@ def main():
     # Load pretrained model and tokenizer
     # TODO: change to classification arguments
     # TODO: additional condition for model type
-    tokenizer = AutoTokenizer.from_pretrained(args.pretrained_dir,
-                                              use_fast=not args.use_slow_tokenizer)
+    if args.custom_model == "longformer":
+        tokenizer = AutoTokenizer.from_pretrained(
+        args.pretrained_dir,
+        max_length=args.max_seq_length,
+        padding="max_length",
+        truncation=True,
+        )
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(args.pretrained_dir,
+                                                  use_fast=True)
 
     if args.custom_model in ("hierarchical", "sliding_window"):
         model = HierarchicalClassificationModel(c_args=args,
                                                 args=None if args.custom_model == "sliding_window" else pretrained_args,
                                                 tokenizer=tokenizer,
                                                 num_labels=num_labels)
+    elif args.custom_model == "longformer":
+        psm = pretrained_sequence_model_selector(select_base(args.pretrained_dir))
+        model = get_attention_injected_model(psm)
+        model = model.from_pretrained(
+            args.pretrained_dir,  # /checkpoint-14500
+            max_length=args.max_seq_length,
+            num_labels=num_labels
+        )
     else:
         config = AutoConfig.from_pretrained(args.pretrained_dir, num_labels=num_labels)
         model = AutoModelForSequenceClassification.from_pretrained(
@@ -360,6 +403,8 @@ def main():
                                            max_document_len=pretrained_args.max_document_length if args.max_document_length is None else args.max_document_length,
                                            article_numbers=ARTICLE_NUMBERS,
                                            consider_dcls=True if args.custom_model == "hierarchical" else False)
+    elif args.custom_model == "longformer":
+        data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=512)
     else:
         data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=(8 if accelerator.use_fp16 else None))
 
@@ -405,10 +450,7 @@ def main():
         num_training_steps=args.max_train_steps,
     )
 
-    # Modified: only accuracy.
-    # Get the metric function
     metric = load_metric("accuracy")
-
     # Train!
     total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
 
@@ -424,11 +466,13 @@ def main():
     completed_steps = 0
 
     # Modified for checkpoint saving:
-    best_score = float("-inf")
+    best_score = float("inf")
+    patience = 0
 
     for epoch in range(args.num_train_epochs):
         model.train()
         running_loss = 0.0
+        validation_loss = 0.0
         for step, batch in enumerate(train_dataloader):
             # Modified for Hierarchical Classification Model
             outputs = model(**batch)
@@ -442,10 +486,11 @@ def main():
                 progress_bar.update(1)
                 completed_steps += 1
             # TODO: change
-                running_loss += loss.item()
-            if step % args.logging_steps == args.logging_steps - 1:
-                logger.info(f"epoch: {epoch}, step {step+1}:, loss: {running_loss/args.logging_steps}")
-                running_loss = 0.0
+                # running_loss += loss.item()
+                running_loss += loss.item() * batch["labels"].shape[0]
+            # if step % args.logging_steps == args.logging_steps - 1:
+            #     logger.info(f"epoch: {epoch}, step {step+1}:, loss: {running_loss/args.logging_steps}")
+            #     running_loss = 0.0
             if completed_steps >= args.max_train_steps:
                 break
 
@@ -454,6 +499,7 @@ def main():
             # Modified for Hierarchical Classification Model
             with torch.no_grad():
                 outputs = model(**batch)
+            validation_loss += outputs.loss.item() * batch["labels"].shape[0]
             predictions = outputs.logits.argmax(dim=-1)
             metric.add_batch(
                 predictions=accelerator.gather(predictions),
@@ -461,11 +507,18 @@ def main():
             )
 
         eval_metric = metric.compute()
-        logger.info(f"epoch {epoch}: {eval_metric}")
-
+        # logger.info(f"epoch {epoch}: {eval_metric}")
+        train_loss = running_loss / len(train_dataset)
+        validation_loss = validation_loss / len(eval_dataset)
+        logger.info(
+            f"epoch {epoch}| accuracy: {eval_metric}, train loss: {train_loss:.4f}"
+            f", validation loss: {validation_loss:.4f}"
+        )
+        
         # TODO: save checkpoints
-        if eval_metric['accuracy'] > best_score:
-            best_score = eval_metric['accuracy']
+        if validation_loss < best_score:
+            patience = 0
+            best_score = validation_loss
             accelerator.wait_for_everyone()
             unwrapped_model = accelerator.unwrap_model(model)
             # Modified
@@ -478,20 +531,27 @@ def main():
             logger.info(f"model after epoch {epoch} is saved")
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(args.output_dir)
-                # repo.push_to_hub(
-                #     commit_message=f"Training in progress epoch {epoch}", blocking=False, auto_lfs_prune=True
-                # )
+        else:
+            patience += 1
+            if patience == args.max_patience:
+                logger.info(f"Traning stopped after the epoch {epoch}, due to patience parameter.")
+                break
 
-    # if args.output_dir is not None:
-    #     accelerator.wait_for_everyone()
-    #     unwrapped_model = accelerator.unwrap_model(model)
-    #     # Modified
-    #     accelerator.save(obj=unwrapped_model.state_dict(),
-    #                      f=args.output_dir + "/model.pth")
-    #     if accelerator.is_main_process:
-    #         tokenizer.save_pretrained(args.output_dir)
-    #         if args.push_to_hub:
-    #             repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
+        # # TODO: save checkpoints
+        # if eval_metric['accuracy'] > best_score:
+        #     best_score = eval_metric['accuracy']
+        #     accelerator.wait_for_everyone()
+        #     unwrapped_model = accelerator.unwrap_model(model)
+        #     # Modified
+        #     # TODO: change for other models
+        #     if args.custom_model in ("hierarchical", "sliding_window"):
+        #         accelerator.save(obj=unwrapped_model.state_dict(),
+        #                          f=args.output_dir + "/model.pth")
+        #     else:
+        #         unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
+        #     logger.info(f"model after epoch {epoch} is saved")
+        #     if accelerator.is_main_process:
+        #         tokenizer.save_pretrained(args.output_dir)
 
 
 if __name__ == "__main__":
