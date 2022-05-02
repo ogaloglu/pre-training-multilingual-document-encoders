@@ -157,13 +157,6 @@ def parse_arguments():
     parser.add_argument("--output_dir", type=str, default=None, help="Where to store the final model.")
     parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
     parser.add_argument(
-        "--model_type",
-        type=str,
-        default=None,
-        help="Model type to use if training from scratch.",
-        choices=MODEL_TYPES,
-    )
-    parser.add_argument(
         "--max_seq_length",
         type=int,
         default=None,
@@ -474,10 +467,10 @@ def main():
     # DataLoaders creation:
     train_dataloader = DataLoader(
         train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size,
-        # num_workers=2, pin_memory=True
+        # num_workers=4, pin_memory=True
     )
     eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size,
-                                 # num_workers=2, pin_memory=True
+                                 # num_workers=4, pin_memory=True
     )
 
     # Optimizer
