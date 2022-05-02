@@ -64,6 +64,9 @@ class CustomDataCollator:
             # Modified for classification task
             if "labels" in features[0]:
                 batch["labels"] = torch.tensor([f["labels"] for f in features], dtype=torch.int64)
+            # TODO: can be written better
+            elif "label" in features[0]:
+                batch["labels"] = torch.tensor([f["label"] for f in features], dtype=torch.int64)
 
             # Modified for compatibility with CrossEncoder batching scheme
             if self.target_device is not None:
