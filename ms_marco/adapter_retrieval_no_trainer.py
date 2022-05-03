@@ -23,7 +23,7 @@ from datetime import datetime
 from pathlib import Path
 
 import datasets
-from datasets import load_from_disk, load_metric
+from datasets import load_metric, load_dataset, DatasetDict
 from tokenizers import Tokenizer
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
@@ -389,8 +389,8 @@ def main():
             else:
                 pad_to_multiple_of = 8
             tokenized_examples = tokenizer(*[questions, passages], 
-                                            padding=True, r
-                                            eturn_tensors="pt",
+                                            padding=True,
+                                            return_tensors="pt",
                                             truncation='longest_first',
                                             max_length=args.max_seq_length,
                                             pad_to_multiple_of=pad_to_multiple_of
@@ -398,7 +398,7 @@ def main():
             tokenized_examples['labels'] = torch.tensor([e['label'] for e in examples], dtype=torch.float if config.num_labels == 1 else torch.long)
             tokenized_examples['labels'] = torch.unsqueeze(tokenized_examples['labels'], 1)
             return tokenized_examples
-        data_collator = data_colaltor
+        data_collator = data_collator
 
 
     train_dataloader = DataLoader(
@@ -465,7 +465,6 @@ def main():
     for epoch in range(args.num_train_epochs):
         model.train()
         running_loss = 0.0
-        validation_loss = 0.0
         for step, batch in enumerate(train_dataloader):
             # Modified for Hierarchical Classification Model
             outputs = model(**batch)
@@ -482,6 +481,7 @@ def main():
                 # running_loss += loss.item()
                 running_loss += loss.item() * batch["labels"].shape[0]
             if step % args.logging_steps == args.logging_steps - 1:
+                validation_loss = 0.0
                 #logger.info(f"epoch: {epoch}, step {step+1}:, loss: {running_loss/args.logging_steps}")
                 model.eval()
                 for _, batch in enumerate(eval_dataloader):
@@ -496,7 +496,7 @@ def main():
                     )
 
                 eval_metric = metric.compute()
-                train_loss = running_loss / len(train_dataset)
+                train_loss = running_loss / args.logging_steps
                 validation_loss = validation_loss / len(eval_dataset)
                 logger.info(
                     f"epoch {epoch}| accuracy: {eval_metric}, train loss: {train_loss:.4f}"
@@ -531,6 +531,7 @@ def main():
                 break
 
         model.eval()
+        validation_loss = 0.0
         for _, batch in enumerate(eval_dataloader):
             # Modified for Hierarchical Classification Model
             with torch.no_grad():
@@ -543,7 +544,7 @@ def main():
             )
 
         eval_metric = metric.compute()
-        train_loss = running_loss / len(train_dataset)
+        train_loss = running_loss / args.logging_steps
         validation_loss = validation_loss / len(eval_dataset)
         logger.info(
             f"epoch {epoch}| accuracy: {eval_metric}, train loss: {train_loss:.4f}"
