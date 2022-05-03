@@ -18,7 +18,7 @@ MODEL_MAPPING = {
 }
 
 
-def sliding_tokenize(article: str, tokenizer, args: argparse.Namespace) -> tuple:
+def sliding_tokenize(article: str, tokenizer, args: argparse.Namespace, task=None) -> tuple:
     """Tokenization function for sliding window approach."""
     sentences = tokenizer(article,
                           max_length=args.max_seq_length,
@@ -30,11 +30,12 @@ def sliding_tokenize(article: str, tokenizer, args: argparse.Namespace) -> tuple
     return sentences["input_ids"], sentences["attention_mask"]
 
 
-def tokenize_helper(article: str, tokenizer, args: argparse.Namespace) -> tuple:
+def tokenize_helper(article: str, tokenizer, args: argparse.Namespace, task: str = None) -> tuple:
     """Tokenization function for sentence splitting approach."""
-    if getattr(args, "task", None) is None:
+    if task is None:
         sentences = [tokenizer.encode(sentence, add_special_tokens=False) for sentence in sent_tokenize(article)]
-    elif getattr(args, "task") == "retrieval":
+    # elif getattr(args, "task") == "retrieval":
+    elif task == "retrieval":
         query, document = article.split("[SEP]")
         sentences = [query] + sent_tokenize(document)
         sentences = [tokenizer.encode(sentence, add_special_tokens=False) for sentence in sentences]
@@ -49,7 +50,7 @@ def tokenize_helper(article: str, tokenizer, args: argparse.Namespace) -> tuple:
 
 
 def custom_tokenize(example: Union[arrow_dataset.Example, dict], tokenizer,
-                    args: argparse.Namespace, article_numbers: int) -> arrow_dataset.Example:
+                    args: argparse.Namespace, article_numbers: int, task:str = None) -> arrow_dataset.Example:
     """Controller function for tokenization."""
     if args.use_sliding_window_tokenization:
         func = sliding_tokenize
@@ -57,7 +58,7 @@ def custom_tokenize(example: Union[arrow_dataset.Example, dict], tokenizer,
         func = tokenize_helper
 
     for i in range(1, article_numbers + 1):
-        example[f"article_{i}"], example[f"mask_{i}"] = func(example[f"article_{i}"], tokenizer, args)
+        example[f"article_{i}"], example[f"mask_{i}"] = func(example[f"article_{i}"], tokenizer, args, task)
 
     return example
 
