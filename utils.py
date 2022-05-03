@@ -63,6 +63,14 @@ def custom_tokenize(example: Union[arrow_dataset.Example, dict], tokenizer,
     return example
 
 
+def retrieval_preprocess(example: Union[arrow_dataset.Example, dict], tokenizer, args: argparse.Namespace) -> dict:
+    """Tokenization for retrieval tasks."""
+    tmp = "[SEP]".join([example["query"].strip(), example["passage"].strip()])
+    tmp_dict = {"article_1": tmp}
+    tokenized = custom_tokenize(tmp_dict, tokenizer=tokenizer, args=args, article_numbers=1, task="retrieval")
+    return tokenized
+
+
 def save_args(args: argparse.Namespace, args_path: str = None, pretrained: bool = False):
     """Saves command line arguments to a json file.
 
