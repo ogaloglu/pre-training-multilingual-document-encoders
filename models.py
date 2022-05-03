@@ -245,7 +245,7 @@ class ContrastiveModel(nn.Module):
         )
 
 class HierarchicalClassificationModel(nn.Module):
-    def __init__(self, c_args, args, tokenizer, num_labels, **kwargs):
+    def __init__(self, c_args, args, tokenizer, num_labels, regression=False, **kwargs):
         super().__init__()
         if c_args.custom_model == "hierarchical":
             # Modified: Now, different upper/lower pooling options than the pretrained model can be given.
@@ -296,10 +296,12 @@ class HierarchicalClassificationModel(nn.Module):
             if self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
                 loss_fct = nn.CrossEntropyLoss()
                 loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
-            else:
+            elif regression:
                 loss_fct = nn.MSELoss()
                 loss = loss_fct(logits.squeeze(), labels.squeeze())
-
+            else:
+                loss_fct = BCEWithLogitsLoss()
+                loss = loss_fct(logits, labels)
         return SequenceClassifierOutput(
             loss=loss,
             logits=logits
