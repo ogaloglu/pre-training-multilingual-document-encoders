@@ -1,41 +1,29 @@
-PROJECT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
+PROJECT_HOME=/home/ogalolu/thesis/pre-training-multilingual-document-encoders/
 
 # output directory of prepare_data.sh
-DATA_DIR=/home/usr/resource/data/msmarco
-# ranking adapter (output dir)
-RA_DIR=/home/usr/resources/adapter/ir
-# language adapter
-LA_DIR=/home/usr/resources/mlm/rf_2/en/checkpoint-250000/mlm_adapter
+DATA_DIR=/work/ogalolu/data/msmarco/
 
-MODEL=bert-base-multilingual-uncased
-REDUCTION_FACTOR=1
-ACTIVATION=relu
+MAX_SEQ_LENGTH=4096
+CUSTOM_MODEL=longformer
+PRETRAINED_DIR=/work-ceph/ogalolu/models/long_models/labse-4096
 
-mkdir -p ./src/
-cp -r $PROJECT_HOME/* ./src/
-
-python $PROJECT_HOME/src/adapter_retrieval.py \
-    --overwrite_output_dir \
-    --output_dir $RA_DIR/rf_2_$REDUCTION_FACTOR/ \
-    --cache_dir $RA_DIR/rf_2_$REDUCTION_FACTOR/.cache/ \
-    --model_name_or_path bert-base-multilingual-uncased \
-    --max_seq_length 512 \
+python $PROJECT_HOME/ms_marco/adapter_retrieval_no_trainer.py \
+    --output_dir /work-ceph/ogalolu/models/finetuned_models/ms_marco \
+    --pretrained_dir $PRETRAINED_DIR \
+    --max_seq_length $MAX_SEQ_LENGTH \
     --train_file $DATA_DIR/train_sbert.jsonl \
     --validation_file $DATA_DIR/dev_sbert.jsonl \
-    --do_train \
     --per_device_train_batch_size 32 \
     --per_device_eval_batch_size 32 \
+    --gradient_accumulation_steps 1\
     --learning_rate 2e-5 \
-    --eval_steps 25000 \
-    --save_steps 25000 \
-    --load_best_model_at_end \
-    --evaluation_strategy steps \
+    --logging_steps 1000 \
     --num_train_epochs 1 \
     --warmup_steps 5000 \
-    --log_level info \
-    --train_adapter \
-    --adapter_config pfeiffer \
-    --adapter_non_linearity relu \
-    --adapter_reduction_factor $REDUCTION_FACTOR \
-    --load_lang_adapter $LA_DIR \
-    --language en
+    --weight_decay 1e-5 \
+    --seed 42 \
+    --preprocessing_num_workers 32 \
+    --max_patience 7 \
+    --custom_model $CUSTOM_MODEL
+
+# ----unfreeze
