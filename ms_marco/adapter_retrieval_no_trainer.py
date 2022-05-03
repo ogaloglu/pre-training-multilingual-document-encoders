@@ -18,12 +18,14 @@ import argparse
 import logging
 import math
 import os
+import sys
 import random
 from datetime import datetime
 from pathlib import Path
 
 import datasets
-from datasets import load_metric, load_dataset, DatasetDict
+import torch
+from datasets import load_metric, load_from_disk
 from tokenizers import Tokenizer
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
@@ -43,6 +45,7 @@ from transformers import (
 from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
 
+sys.path.insert(0, '/home/ogalolu/thesis/pre-training-multilingual-document-encoders')
 from utils import load_args, save_args, path_adder, preprocess_function, MODEL_MAPPING, select_base, retrieval_preprocess
 from model_utils import freeze_base, copy_proj_layers, pretrained_masked_model_selector, pretrained_model_selector, pretrained_sequence_model_selector
 from data_collator import CustomDataCollator
@@ -309,8 +312,9 @@ def main():
     accelerator.wait_for_everyone()
 
     # Modified:
-    train_dataset = load_dataset("json", data_files=args.train_file)
-    eval_dataset = load_dataset("json", data_files=args.validation_file)
+    # train_dataset = load_dataset("json", data_files=args.train_file)
+    # eval_dataset = load_dataset("json", data_files=args.validation_file)
+    raw_datasets = load_from_disk(args.train_file)
 
     # Labels
     # Modified
@@ -343,29 +347,32 @@ def main():
             max_length=args.max_seq_length,
             num_labels=num_labels
         )
+        model.config.problem_type = "multi_label_classification"
     else:
         config = AutoConfig.from_pretrained(args.pretrained_dir, num_labels=num_labels)
         model = AutoModelForSequenceClassification.from_pretrained(
             args.pretrained_dir,
             config=config,
         )
+        model.config.problem_type = "multi_label_classification"
         if args.frozen:
             freeze_base(model)
 
     if args.custom_model in ("hierarchical", "sliding_window"):
         with accelerator.main_process_first():
-            datasets = DatasetDict()
-            datasets["train"] = dataset_train
-            datasets["test"] = dataset_dev
-            datasets = datasets.map(
+            # datasets = DatasetDict()
+            # datasets["train"] = dataset_train
+            # datasets["test"] = dataset_dev
+            raw_datasets = raw_datasets.map(
                 retrieval_preprocess,
                 fn_kwargs={"tokenizer": tokenizer, "args": args},
                 num_proc=args.preprocessing_num_workers,
                 load_from_cache_file=False,
                 desc="Running tokenizer on dataset",
             )
-            train_dataset = datasets["train"]
-            eval_dataset = datasets["test"]
+    train_dataset = raw_datasets["train"]
+    # TODO: CHANGE!
+    eval_dataset = raw_datasets["test"].select(range(10000))
 
     # Log a few random samples from the training set:
     for index in random.sample(range(len(train_dataset)), 3):
@@ -395,7 +402,7 @@ def main():
                                             max_length=args.max_seq_length,
                                             pad_to_multiple_of=pad_to_multiple_of
                                              )
-            tokenized_examples['labels'] = torch.tensor([e['label'] for e in examples], dtype=torch.float if config.num_labels == 1 else torch.long)
+            tokenized_examples['labels'] = torch.tensor([e['label'] for e in examples], dtype=torch.float if num_labels == 1 else torch.long)
             tokenized_examples['labels'] = torch.unsqueeze(tokenized_examples['labels'], 1)
             return tokenized_examples
         data_collator = data_collator
@@ -483,21 +490,38 @@ def main():
             if step % args.logging_steps == args.logging_steps - 1:
                 validation_loss = 0.0
                 #logger.info(f"epoch: {epoch}, step {step+1}:, loss: {running_loss/args.logging_steps}")
+                samples_seen = 0
                 model.eval()
+                losses = []
                 for _, batch in enumerate(eval_dataloader):
                     # Modified for Hierarchical Classification Model
                     with torch.no_grad():
                         outputs = model(**batch)
-                    validation_loss += outputs.loss.item() * batch["labels"].shape[0]
+                    # validation_loss += outputs.loss.item() * batch["labels"].shape[0]
+                    loss = outputs.loss
+                    losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))     
+
+                    # predictions = outputs.logits.argmax(dim=-1) if not is_regression else outputs.logits.squeeze()
                     predictions = outputs.logits.argmax(dim=-1)
+                    predictions, references = accelerator.gather((predictions, batch["labels"]))
+                    # If we are in a multiprocess environment, the last batch has duplicates
+                    if accelerator.num_processes > 1:
+                        if step == len(eval_dataloader):
+                            predictions = predictions[: len(eval_dataloader.dataset) - samples_seen]
+                            references = references[: len(eval_dataloader.dataset) - samples_seen]
+                        else:
+                            samples_seen += references.shape[0]
                     metric.add_batch(
-                        predictions=accelerator.gather(predictions),
-                        references=accelerator.gather(batch["labels"]),
+                        predictions=predictions,
+                        references=references,
                     )
 
                 eval_metric = metric.compute()
                 train_loss = running_loss / args.logging_steps
-                validation_loss = validation_loss / len(eval_dataset)
+                # validation_loss = validation_loss / len(eval_dataset)
+                losses = torch.cat(losses)
+                losses = losses[: len(eval_dataset)]
+                validation_loss = torch.mean(losses)
                 logger.info(
                     f"epoch {epoch}| accuracy: {eval_metric}, train loss: {train_loss:.4f}"
                     f", validation loss: {validation_loss:.4f}"
@@ -513,17 +537,17 @@ def main():
                     # TODO: change for other models
                     if args.custom_model in ("hierarchical", "sliding_window"):
                         accelerator.save(obj=unwrapped_model.state_dict(),
-                                        f=f"{args.output_dir}/model_{step}.pth")
+                                        f=f"{args.output_dir}/model_{step+1}.pth")
      
                     else:
-                        unwrapped_model.save_pretrained(f"{args.output_dir}/checkpoint-{step}", save_function=accelerator.save)
-                    logger.info(f"model after step {step} is saved")
+                        unwrapped_model.save_pretrained(f"{args.output_dir}/checkpoint-{step+1}", save_function=accelerator.save)
+                    logger.info(f"model after step {step+1} is saved")
                     if accelerator.is_main_process:
                         tokenizer.save_pretrained(args.output_dir)
                 else:
                     patience += 1
                     if patience == args.max_patience:
-                        logger.info(f"Traning stopped after the step {step}, due to patience parameter.")
+                        logger.info(f"Traning stopped after the step {step+1}, due to patience parameter.")
                         break
                 running_loss = 0.0
                 model.train()
@@ -561,17 +585,17 @@ def main():
             # TODO: change for other models
             if args.custom_model in ("hierarchical", "sliding_window"):
                 accelerator.save(obj=unwrapped_model.state_dict(),
-                                f=f"{args.output_dir}/model_{step}.pth")
+                                f=f"{args.output_dir}/model_{step+1}.pth")
 
             else:
-                unwrapped_model.save_pretrained(f"{args.output_dir}/checkpoint-{step}", save_function=accelerator.save)
-            logger.info(f"model after step {step} is saved")
+                unwrapped_model.save_pretrained(f"{args.output_dir}/checkpoint-{step+1}", save_function=accelerator.save)
+            logger.info(f"model after step {step+1} is saved")
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(args.output_dir)
         else:
             patience += 1
             if patience == args.max_patience:
-                logger.info(f"Traning stopped after the step {step}, due to patience parameter.")
+                logger.info(f"Traning stopped after the step {step+1}, due to patience parameter.")
                 break
 
         # # TODO: save checkpoints
