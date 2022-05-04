@@ -372,7 +372,7 @@ def main():
             )
     train_dataset = raw_datasets["train"]
     # TODO: CHANGE!
-    eval_dataset = raw_datasets["test"].select(range(10000))
+    eval_dataset = raw_datasets["test"].select(range(2000))
 
     # Log a few random samples from the training set:
     for index in random.sample(range(len(train_dataset)), 3):
