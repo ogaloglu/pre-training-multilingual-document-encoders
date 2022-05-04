@@ -28,7 +28,8 @@ class CustomDataCollator:
             # For document level masking
             batch_document_masks = list()
             # For early initiliazed "DCLS" (Document level CLS)
-            batch_dcls = list()
+            if self.consider_dcls:
+                batch_dcls = list()
 
             sen_len_article = [len(sentence) for instance in features
                                for sentence in instance[f"article_{article_number}"]]
@@ -53,13 +54,15 @@ class CustomDataCollator:
                 batch_sentences.append(sentences)
                 batch_masks.append(masks)
                 batch_document_masks.append(document_mask)
-                # For each 
-                batch_dcls.append(self.tokenizer.encode("[DCLS]", add_special_tokens=False))
+                if self.consider_dcls:
+                    # For each 
+                    batch_dcls.append(self.tokenizer.encode("[DCLS]", add_special_tokens=False))
 
             batch[f"article_{article_number}"] = torch.tensor(batch_sentences, dtype=torch.int64)
-            batch[f"mask_{article_number}"] = torch.tensor(batch_masks, dtype=torch.int64)
-            batch[f"dcls_{article_number}"] = torch.tensor(batch_dcls, dtype=torch.int64)
+            batch[f"mask_{article_number}"] = torch.tensor(batch_masks, dtype=torch.int64)            
             batch[f"document_mask_{article_number}"] = torch.tensor(batch_document_masks, dtype=torch.int64)
+            if self.consider_dcls:
+                batch[f"dcls_{article_number}"] = torch.tensor(batch_dcls, dtype=torch.int64)
 
             # Modified for classification task
             if "labels" in features[0]:
