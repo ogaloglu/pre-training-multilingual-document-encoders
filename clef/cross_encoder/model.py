@@ -23,10 +23,11 @@ from dataclasses import dataclass
 sys.path.insert(0, '/home/ogalolu/thesis/pre-training-multilingual-document-encoders/clef/cross_encoder')
 import util
 sys.path.insert(0, '/home/ogalolu/thesis/pre-training-multilingual-document-encoders')
-from utils import custom_tokenize, load_args, save_args, path_adder, preprocess_function
-from model_utils import freeze_base
+from utils import custom_tokenize, load_args, save_args, path_adder, preprocess_function, MODEL_MAPPING, select_base, retrieval_preprocess
+from model_utils import freeze_base, copy_proj_layers, pretrained_masked_model_selector, pretrained_model_selector, pretrained_sequence_model_selector
 from data_collator import CustomDataCollator
 from models import HierarchicalClassificationModel
+from longformer import get_attention_injected_model
 
 
 logger = logging.getLogger(__name__)
@@ -65,7 +66,17 @@ class CrossEncoder(CrossEncoder):
             # self.hierarchical_args.use_sliding_window_tokenization = True
             self.pretrained_args.use_sliding_window_tokenization = True
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, **tokenizer_args)
+        # self.tokenizer = AutoTokenizer.from_pretrained(model_name, **tokenizer_args)
+
+        if self.custom_model == "longformer":
+            self.tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            max_length=4096,
+            padding="max_length",
+            truncation=True,
+            )
+        else:
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
         if self.custom_model in ("hierarchical", "sliding_window"):
             self.model = HierarchicalClassificationModel(c_args=self.hierarchical_args,
@@ -74,10 +85,14 @@ class CrossEncoder(CrossEncoder):
                                                     num_labels=num_labels)
             self.config = CustomConfig(num_labels=num_labels)
         elif self.custom_model == "longformer":
-            self.config = AutoConfig.from_pretrained(model_name + self.hierarchical_args.pretrained_epoch)
+
+            self.config = AutoConfig.from_pretrained(model_name)
             self.config.num_labels = num_labels
-            self.model = AutoModelForSequenceClassification.from_pretrained(
-                model_name,
+ 
+            psm = pretrained_sequence_model_selector(select_base(model_name))
+            self.model = get_attention_injected_model(psm)
+            self.model = self.model.from_pretrained(
+                model_name,  # /checkpoint-14500
                 max_length=4096,
                 num_labels=num_labels
             )
@@ -152,7 +167,7 @@ class CrossEncoder(CrossEncoder):
             inp_dataloader = DataLoader(sentences, batch_size=batch_size, collate_fn=self.smart_batching_collate_text_only, num_workers=num_workers, shuffle=False)
         else:
             custom_batched_sentences = self.custom_batching(sentences)
-            inp_dataloader = DataLoader(custom_batched_sentences, batch_size=32, collate_fn=self.data_collator, num_workers=num_workers, shuffle=False)
+            inp_dataloader = DataLoader(custom_batched_sentences, batch_size=16, collate_fn=self.data_collator, num_workers=num_workers, shuffle=False, )
 
         if show_progress_bar is None:
             show_progress_bar = (logger.getEffectiveLevel() == logging.INFO or logger.getEffectiveLevel() == logging.DEBUG)
@@ -200,3 +215,18 @@ class CrossEncoder(CrossEncoder):
             tokenized = custom_tokenize(tmp_dict, self.tokenizer, self.pretrained_args, article_numbers=1, task="retrieval")
             processed_batch.append(tokenized)
         return processed_batch
+
+    def smart_batching_collate_text_only(self, batch):
+        texts = [[] for _ in range(len(batch[0]))]
+
+        for example in batch:
+            for idx, text in enumerate(example):
+                texts[idx].append(text.strip())
+
+        # tokenized = self.tokenizer(*texts, padding=True, truncation='longest_first', return_tensors="pt", max_length=self.max_length)
+        tokenized = self.tokenizer(*texts, padding=True, pad_to_multiple_of=512, return_tensors="pt", max_length=self.max_length)
+
+        for name in tokenized:
+            tokenized[name] = tokenized[name].to(self._target_device)
+
+        return tokenized
