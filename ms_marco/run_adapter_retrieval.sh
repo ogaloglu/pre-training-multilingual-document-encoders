@@ -7,23 +7,27 @@ MAX_SEQ_LENGTH=4096
 CUSTOM_MODEL=longformer
 PRETRAINED_DIR=/work-ceph/ogalolu/models/long_models/labse-4096
 
-python $PROJECT_HOME/ms_marco/adapter_retrieval_no_trainer.py \
+python $PROJECT_HOME/ms_marco/adapter_retrieval.py \
+    --overwrite_output_dir \
     --output_dir /work-ceph/ogalolu/models/finetuned_models/ms_marco \
+    --cache_dir /work-ceph/ogalolu/models/finetuned_models/ms_marco/.cache/ \
     --pretrained_dir $PRETRAINED_DIR \
     --max_seq_length $MAX_SEQ_LENGTH \
+    --custom_model $CUSTOM_MODEL \
     --train_file $DATA_DIR/train_sbert.jsonl \
     --validation_file $DATA_DIR/dev_sbert.jsonl \
-    --per_device_train_batch_size 32 \
-    --per_device_eval_batch_size 32 \
-    --gradient_accumulation_steps 1\
-    --learning_rate 2e-5 \
-    --logging_steps 1000 \
+    --do_train \
+    --do_eval \
+    --learning_rate 3e-5 \
+    --eval_steps 5000 \
+    --save_steps 5000 \
+    --load_best_model_at_end \
+    --evaluation_strategy steps \
     --num_train_epochs 1 \
-    --warmup_steps 5000 \
-    --weight_decay 1e-5 \
-    --seed 42 \
-    --preprocessing_num_workers 32 \
-    --max_patience 7 \
-    --custom_model $CUSTOM_MODEL
-
-# ----unfreeze
+    --warmup_steps 2500 \
+    --log_level info \
+    --weight_decay 1e-2 \
+    --per_device_eval_batch_size 64 \
+    --per_device_train_batch_size 32 \
+    --gradient_accumulation_steps 1 \
+    --max_eval_samples 20000
