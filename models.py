@@ -279,7 +279,7 @@ class HierarchicalClassificationModel(nn.Module):
 
         self.classifier = nn.Linear(self.hierarchical_model.lower_config.hidden_size, self.num_labels)
 
-    def forward(self, article_1, mask_1, dcls_1, document_mask_1, labels=None):
+    def forward(self, article_1, mask_1, document_mask_1, dcls_1=None, labels=None):
         output = self.hierarchical_model(input_ids=article_1,
                                            attention_mask=mask_1,
                                            dcls=dcls_1,
