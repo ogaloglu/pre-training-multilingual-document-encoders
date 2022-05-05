@@ -72,7 +72,8 @@ class CrossEncoder(CrossEncoder):
             self.tokenizer = AutoTokenizer.from_pretrained(
             model_name,
             max_length=4096,
-            padding="max_length",
+            padding=True,
+            # padding="max_length",
             truncation=True,
             )
         else:
@@ -167,7 +168,7 @@ class CrossEncoder(CrossEncoder):
             inp_dataloader = DataLoader(sentences, batch_size=batch_size, collate_fn=self.smart_batching_collate_text_only, num_workers=num_workers, shuffle=False)
         else:
             custom_batched_sentences = self.custom_batching(sentences)
-            inp_dataloader = DataLoader(custom_batched_sentences, batch_size=16, collate_fn=self.data_collator, num_workers=num_workers, shuffle=False, )
+            inp_dataloader = DataLoader(custom_batched_sentences, batch_size=32, collate_fn=self.data_collator, num_workers=num_workers, shuffle=False, )
 
         if show_progress_bar is None:
             show_progress_bar = (logger.getEffectiveLevel() == logging.INFO or logger.getEffectiveLevel() == logging.DEBUG)
@@ -224,7 +225,7 @@ class CrossEncoder(CrossEncoder):
                 texts[idx].append(text.strip())
 
         # tokenized = self.tokenizer(*texts, padding=True, truncation='longest_first', return_tensors="pt", max_length=self.max_length)
-        tokenized = self.tokenizer(*texts, padding=True, pad_to_multiple_of=512, return_tensors="pt", max_length=self.max_length)
+        tokenized = self.tokenizer(*texts, padding=True, truncation=True, pad_to_multiple_of=512, return_tensors="pt", max_length=self.max_length)
 
         for name in tokenized:
             tokenized[name] = tokenized[name].to(self._target_device)
