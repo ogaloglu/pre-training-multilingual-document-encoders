@@ -316,6 +316,18 @@ def parse_arguments():
         default=None,
         help="The length of the stride, when sliding window approach is used.",
     )
+    parser.add_argument(
+        "--resume_from_checkpoint",
+        type=str,
+        default=None,
+        help="If the training should continue from a checkpoint folder.",
+    )
+    parser.add_argument(
+        "--checkpointing_steps",
+        type=str,
+        default=None,
+        help="Whether the various states should be saved at the end of every n steps, or 'epoch' for each epoch.",
+    )
     args = parser.parse_args()
     # Sanity checks
     if args.dataset_name is None and args.train_file is None and args.validation_file is None:
@@ -513,6 +525,13 @@ def main():
         num_warmup_steps=args.num_warmup_steps,
         num_training_steps=args.max_train_steps,
     )
+    # Figure out how many steps we should save the Accelerator states
+    if hasattr(args.checkpointing_steps, "isdigit"):
+        checkpointing_steps = args.checkpointing_steps
+        if args.checkpointing_steps.isdigit():
+            checkpointing_steps = int(args.checkpointing_steps)
+    else:
+        checkpointing_steps = None
 
     # Train!
     total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
@@ -527,15 +546,43 @@ def main():
     # Only show the progress bar once on each machine.
     progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
     completed_steps = 0
+    starting_epoch = 0
 
     # Modified for checkpoint saving:
     min_loss = float("inf")
+
+        # Potentially load in the weights and states from a previous save
+    if args.resume_from_checkpoint:
+        if args.resume_from_checkpoint is not None or args.resume_from_checkpoint != "":
+            accelerator.print(f"Resumed from checkpoint: {args.resume_from_checkpoint}")
+            accelerator.load_state(args.resume_from_checkpoint)
+            path = os.path.basename(args.resume_from_checkpoint)
+        else:
+            # Get the most recent checkpoint
+            dirs = [f.name for f in os.scandir(os.getcwd()) if f.is_dir()]
+            dirs.sort(key=os.path.getctime)
+            path = dirs[-1]  # Sorts folders by date modified, most recent checkpoint is the last
+        # Extract `epoch_{i}` or `step_{i}`
+        training_difference = os.path.splitext(path)[0]
+
+        if "epoch" in training_difference:
+            starting_epoch = int(training_difference.replace("epoch_", "")) + 1
+            resume_step = None
+        else:
+            resume_step = int(training_difference.replace("step_", ""))
+            starting_epoch = resume_step // len(train_dataloader)
+            resume_step -= starting_epoch * len(train_dataloader)
 
     for epoch in range(args.num_train_epochs):
         model.train()
         # Modified for running_loss
         running_loss = 0.0
         for step, batch in enumerate(train_dataloader):
+            # We need to skip steps until we reach the resumed step
+            if args.resume_from_checkpoint and epoch == starting_epoch:
+                if resume_step is not None and step < resume_step:
+                    completed_steps += 1
+                    continue
             # Modified for ContrastiveModel
             outputs = model(**batch)
             loss = outputs.loss / args.gradient_accumulation_steps
@@ -549,6 +596,13 @@ def main():
                 # Modified
                 running_loss += loss.item()
                 # logger.info(f"epoch: {epoch}, step: {step+1}, batch_loss: {loss.item()}")
+                
+            if isinstance(checkpointing_steps, int):
+                if completed_steps % checkpointing_steps == 0:
+                    output_dir = f"step_{completed_steps }"
+                    if args.output_dir is not None:
+                        output_dir = os.path.join(args.output_dir, output_dir)
+                    accelerator.save_state(output_dir)
 
             if step % args.logging_steps == args.logging_steps - 1:
                 # TODO change
