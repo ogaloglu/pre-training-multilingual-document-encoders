@@ -265,6 +265,7 @@ class HierarchicalClassificationModel(nn.Module):
             raise NotImplementedError("Respective model type is not supported.")
 
         self.num_labels = num_labels
+        self.regression = regression
 
         if c_args.dropout is not None:
             self.dropout = nn.Dropout(c_args.dropout)
@@ -296,7 +297,7 @@ class HierarchicalClassificationModel(nn.Module):
             if self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
                 loss_fct = nn.CrossEntropyLoss()
                 loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
-            elif regression:
+            elif self.regression:
                 loss_fct = nn.MSELoss()
                 loss = loss_fct(logits.squeeze(), labels.squeeze())
             else:
