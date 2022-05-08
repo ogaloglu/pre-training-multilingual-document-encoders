@@ -77,6 +77,13 @@ def parse_args():
         ),
     )
     parser.add_argument(
+        "--max_document_length",
+        type=int,
+        default=32,
+        help="The maximum number of sentences each document can have. Documents are either truncated"
+             "or padded if their length is different.",
+    )
+    parser.add_argument(
         "--pad_to_max_length",
         action="store_true",
         help="If passed, pad all samples to `max_length`. Otherwise, dynamic padding is used.",
@@ -184,6 +191,12 @@ def parse_args():
         type=int,
         default=500,
         help="Frequency of logging mini-batch loss .",
+    )
+    parser.add_argument(
+        "--saving_steps",
+        type=int,
+        default=5000,
+        help="Frequency of saving model .",
     )
     parser.add_argument(
         "--custom_model",
@@ -372,7 +385,7 @@ def main():
             )
     train_dataset = raw_datasets["train"]
     # TODO: CHANGE!
-    eval_dataset = raw_datasets["test"].select(range(2000))
+    eval_dataset = raw_datasets["test"].select(range(20000))
 
     # Log a few random samples from the training set:
     for index in random.sample(range(len(train_dataset)), 3):
@@ -450,7 +463,7 @@ def main():
         num_training_steps=args.max_train_steps,
     )
 
-    metric = load_metric("accuracy")
+    # metric = load_metric("accuracy")
     # Train!
     total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
 
@@ -472,6 +485,7 @@ def main():
     for epoch in range(args.num_train_epochs):
         model.train()
         running_loss = 0.0
+        training_loss = 0.0
         for step, batch in enumerate(train_dataloader):
             # Modified for Hierarchical Classification Model
             outputs = model(**batch)
@@ -484,13 +498,12 @@ def main():
                 optimizer.zero_grad()
                 progress_bar.update(1)
                 completed_steps += 1
-            # TODO: change
-                # running_loss += loss.item()
-                running_loss += loss.item() * batch["labels"].shape[0]
+                running_loss += loss.item()
+                training_loss += loss.item()
             if step % args.logging_steps == args.logging_steps - 1:
-                validation_loss = 0.0
-                #logger.info(f"epoch: {epoch}, step {step+1}:, loss: {running_loss/args.logging_steps}")
-                samples_seen = 0
+                logger.info(f"epoch: {epoch}, step {step+1}:, loss: {running_loss/args.logging_steps}")         
+                running_loss = 0.0      
+            if step % args.saving_steps == args.saving_steps - 1:
                 model.eval()
                 losses = []
                 for _, batch in enumerate(eval_dataloader):
@@ -501,29 +514,13 @@ def main():
                     loss = outputs.loss
                     losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))     
 
-                    # predictions = outputs.logits.argmax(dim=-1) if not is_regression else outputs.logits.squeeze()
-                    predictions = outputs.logits.argmax(dim=-1)
-                    predictions, references = accelerator.gather((predictions, batch["labels"]))
-                    # If we are in a multiprocess environment, the last batch has duplicates
-                    if accelerator.num_processes > 1:
-                        if step == len(eval_dataloader):
-                            predictions = predictions[: len(eval_dataloader.dataset) - samples_seen]
-                            references = references[: len(eval_dataloader.dataset) - samples_seen]
-                        else:
-                            samples_seen += references.shape[0]
-                    metric.add_batch(
-                        predictions=predictions,
-                        references=references,
-                    )
-
-                eval_metric = metric.compute()
-                train_loss = running_loss / args.logging_steps
+                train_loss = training_loss / args.saving_steps
                 # validation_loss = validation_loss / len(eval_dataset)
                 losses = torch.cat(losses)
                 losses = losses[: len(eval_dataset)]
                 validation_loss = torch.mean(losses)
                 logger.info(
-                    f"epoch {epoch}| accuracy: {eval_metric}, train loss: {train_loss:.4f}"
+                    f"epoch {epoch}| train loss: {train_loss:.4f}"
                     f", validation loss: {validation_loss:.4f}"
                 )
                 
@@ -549,7 +546,7 @@ def main():
                     if patience == args.max_patience:
                         logger.info(f"Traning stopped after the step {step+1}, due to patience parameter.")
                         break
-                running_loss = 0.0
+                training_loss = 0.0
                 model.train()
             if completed_steps >= args.max_train_steps:
                 break
