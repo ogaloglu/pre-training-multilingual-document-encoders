@@ -301,7 +301,7 @@ class HierarchicalClassificationModel(nn.Module):
                 loss_fct = nn.MSELoss()
                 loss = loss_fct(logits.squeeze(), labels.squeeze())
             else:
-                loss_fct = BCEWithLogitsLoss()
+                loss_fct = nn.BCEWithLogitsLoss()
                 loss = loss_fct(logits, labels)
         return SequenceClassifierOutput(
             loss=loss,
