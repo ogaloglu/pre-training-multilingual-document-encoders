@@ -256,9 +256,11 @@ class HierarchicalClassificationModel(nn.Module):
                 args = args._replace(lower_pooling=c_args.lower_pooling) 
             self.hierarchical_model = HiearchicalModel(args, tokenizer)
             if not c_args.custom_from_scratch:
-                self.hierarchical_model.load_state_dict(torch.load(os.path.join(c_args.pretrained_dir, 
-                                                                                f"model_{c_args.pretrained_epoch}.pth"
-                                                                                )))
+                cpt = torch.load(os.path.join(c_args.pretrained_dir, f"model_{c_args.pretrained_epoch}.pth"))
+                # Modified: If the model is saved differently, the following hack will be used
+                if "hierarchical_model" in "".join(cpt.keys()):
+                    cpt = {k[19:]: v for k, v in cpt.items() if "hierarchical_model" in k}                                               
+                self.hierarchical_model.load_state_dict(cpt)
         elif c_args.custom_model == "sliding_window":
             self.hierarchical_model = HiearchicalBaseModel(c_args, tokenizer)
         else:
@@ -302,7 +304,7 @@ class HierarchicalClassificationModel(nn.Module):
                 loss = loss_fct(logits.squeeze(), labels.squeeze())
             else:
                 loss_fct = nn.BCEWithLogitsLoss()
-                loss = loss_fct(logits, labels)
+                loss = loss_fct(logits, torch.unsqueeze(labels.float(), 1))
         return SequenceClassifierOutput(
             loss=loss,
             logits=logits
