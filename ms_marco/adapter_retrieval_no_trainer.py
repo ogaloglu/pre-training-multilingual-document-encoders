@@ -477,6 +477,7 @@ def main():
     # Only show the progress bar once on each machine.
     progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
     completed_steps = 0
+    last_saved_step = 0
 
     # Modified for checkpoint saving:
     best_score = float("inf")
@@ -500,22 +501,20 @@ def main():
                 completed_steps += 1
                 running_loss += loss.item()
                 training_loss += loss.item()
-            if step % args.logging_steps == args.logging_steps - 1:
-                logger.info(f"epoch: {epoch}, step {step+1}:, loss: {running_loss/args.logging_steps}")         
+            if completed_steps % args.logging_steps == args.logging_steps - 1:
+                logger.info(f"epoch: {epoch}, step {completed_steps+1}:, loss: {running_loss/args.logging_steps}")         
                 running_loss = 0.0      
-            if step % args.saving_steps == args.saving_steps - 1:
+            if completed_steps % args.saving_steps == args.saving_steps - 1 and completed_steps != last_saved_step:
+                last_saved_step = completed_steps
                 model.eval()
                 losses = []
                 for _, batch in enumerate(eval_dataloader):
                     # Modified for Hierarchical Classification Model
                     with torch.no_grad():
                         outputs = model(**batch)
-                    # validation_loss += outputs.loss.item() * batch["labels"].shape[0]
                     loss = outputs.loss
                     losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))     
-
                 train_loss = training_loss / args.saving_steps
-                # validation_loss = validation_loss / len(eval_dataset)
                 losses = torch.cat(losses)
                 losses = losses[: len(eval_dataset)]
                 validation_loss = torch.mean(losses)
@@ -525,7 +524,8 @@ def main():
                 )
                 
                 # TODO: save checkpoints
-                if validation_loss < best_score:
+                # if validation_loss < best_score:
+                if True:
                     patience = 0
                     best_score = validation_loss
                     accelerator.wait_for_everyone()
@@ -533,12 +533,12 @@ def main():
                     # Modified
                     # TODO: change for other models
                     if args.custom_model in ("hierarchical", "sliding_window"):
-                        accelerator.save(obj=unwrapped_model.state_dict(),
-                                        f=f"{args.output_dir}/model_{step+1}.pth")
+                        accelerator.save(obj=unwrapped_model.hierarchical_model.state_dict(),
+                                        f=f"{args.output_dir}/model_{completed_steps+1}.pth")
      
                     else:
-                        unwrapped_model.save_pretrained(f"{args.output_dir}/checkpoint-{step+1}", save_function=accelerator.save)
-                    logger.info(f"model after step {step+1} is saved")
+                        unwrapped_model.save_pretrained(f"{args.output_dir}/checkpoint-{completed_steps+1}", save_function=accelerator.save)
+                    logger.info(f"model after step {completed_steps+1} is saved")
                     if accelerator.is_main_process:
                         tokenizer.save_pretrained(args.output_dir)
                 else:
@@ -550,67 +550,6 @@ def main():
                 model.train()
             if completed_steps >= args.max_train_steps:
                 break
-
-        model.eval()
-        validation_loss = 0.0
-        for _, batch in enumerate(eval_dataloader):
-            # Modified for Hierarchical Classification Model
-            with torch.no_grad():
-                outputs = model(**batch)
-            validation_loss += outputs.loss.item() * batch["labels"].shape[0]
-            predictions = outputs.logits.argmax(dim=-1)
-            metric.add_batch(
-                predictions=accelerator.gather(predictions),
-                references=accelerator.gather(batch["labels"]),
-            )
-
-        eval_metric = metric.compute()
-        train_loss = running_loss / args.logging_steps
-        validation_loss = validation_loss / len(eval_dataset)
-        logger.info(
-            f"epoch {epoch}| accuracy: {eval_metric}, train loss: {train_loss:.4f}"
-            f", validation loss: {validation_loss:.4f}"
-        )
-        
-        # TODO: save checkpoints
-        if validation_loss < best_score:
-            patience = 0
-            best_score = validation_loss
-            accelerator.wait_for_everyone()
-            unwrapped_model = accelerator.unwrap_model(model)
-            # Modified
-            # TODO: change for other models
-            if args.custom_model in ("hierarchical", "sliding_window"):
-                accelerator.save(obj=unwrapped_model.state_dict(),
-                                f=f"{args.output_dir}/model_{step+1}.pth")
-
-            else:
-                unwrapped_model.save_pretrained(f"{args.output_dir}/checkpoint-{step+1}", save_function=accelerator.save)
-            logger.info(f"model after step {step+1} is saved")
-            if accelerator.is_main_process:
-                tokenizer.save_pretrained(args.output_dir)
-        else:
-            patience += 1
-            if patience == args.max_patience:
-                logger.info(f"Traning stopped after the step {step+1}, due to patience parameter.")
-                break
-
-        # # TODO: save checkpoints
-        # if eval_metric['accuracy'] > best_score:
-        #     best_score = eval_metric['accuracy']
-        #     accelerator.wait_for_everyone()
-        #     unwrapped_model = accelerator.unwrap_model(model)
-        #     # Modified
-        #     # TODO: change for other models
-        #     if args.custom_model in ("hierarchical", "sliding_window"):
-        #         accelerator.save(obj=unwrapped_model.state_dict(),
-        #                          f=args.output_dir + "/model.pth")
-        #     else:
-        #         unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
-        #     logger.info(f"model after epoch {epoch} is saved")
-        #     if accelerator.is_main_process:
-        #         tokenizer.save_pretrained(args.output_dir)
-
 
 if __name__ == "__main__":
     main()
