@@ -547,6 +547,7 @@ def main():
     progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
     completed_steps = 0
     starting_epoch = 0
+    last_saved_step = 0
 
     # Modified for checkpoint saving:
     min_loss = float("inf")
@@ -598,11 +599,13 @@ def main():
                 # logger.info(f"epoch: {epoch}, step: {step+1}, batch_loss: {loss.item()}")
                 
             if isinstance(checkpointing_steps, int):
-                if completed_steps % checkpointing_steps == 0:
+                if completed_steps % checkpointing_steps == 0 and completed_steps != last_saved_step:
+                    last_saved_step = completed_steps
                     output_dir = f"step_{completed_steps }"
                     if args.output_dir is not None:
                         output_dir = os.path.join(args.output_dir, output_dir)
                     accelerator.save_state(output_dir)
+                    logger.info(f"model is saved after step {completed_steps}")
 
             if step % args.logging_steps == args.logging_steps - 1:
                 # TODO change
