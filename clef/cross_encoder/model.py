@@ -60,7 +60,7 @@ class CrossEncoder(CrossEncoder):
             self.custom_model = None
         
         if self.custom_model == "hierarchical":
-            self.pretrained_args = load_args(os.path.join(model_name, "args.json"))
+            self.pretrained_args = load_args(os.path.join(model_name, "pretrained_args.json"))
             # self.hierarchical_args.use_sliding_window_tokenization = getattr(self.pretrained_args , "use_sliding_window_tokenization", False)
         elif self.custom_model == "sliding_window":
             # self.hierarchical_args.use_sliding_window_tokenization = True
@@ -84,6 +84,9 @@ class CrossEncoder(CrossEncoder):
                                                     args=None if self.custom_model == "sliding_window" else self.pretrained_args,
                                                     tokenizer=self.tokenizer,
                                                     num_labels=num_labels)
+
+            self.model.load_state_dict(torch.load(os.path.join(self.hierarchical_args.pretrained_dir, 
+                                                               f"model_{self.hierarchical_args.pretrained_epoch}.pth")))
             self.config = CustomConfig(num_labels=num_labels)
         elif self.custom_model == "longformer":
 
