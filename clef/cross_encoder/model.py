@@ -142,7 +142,7 @@ class CrossEncoder(CrossEncoder):
                                                target_device=self._target_device)
 
     def predict(self, sentences: List[List[str]],
-               batch_size: int = 32,
+               batch_size: int = 128,
                show_progress_bar: bool = None,
                num_workers: int = 0,
                activation_fct = None,
