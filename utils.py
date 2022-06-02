@@ -12,6 +12,7 @@ from datasets import arrow_dataset
 MODEL_MAPPING = {
     "bert-base-multilingual-cased": "mbert",
     "xlm-roberta-base": "xlmr",
+    "xlm-roberta-large": "xlmr-large",
     "sentence-transformers/LaBSE": "labse",
     "markussagen/xlm-roberta-longformer-base-4096" : "markussagen-longformer",
     "roberta-base": "roberta"

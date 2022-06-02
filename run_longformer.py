@@ -73,13 +73,13 @@ def main():
     class ModelArgs:
         attention_window: int = field(default=512, metadata={"help": "Size of attention window"})
         max_pos: int = field(default=4096, metadata={"help": "Maximum position"})
-        seed_model: str = field(default="sentence-transformers/LaBSE", metadata={"help": "Seed model to convert long"})
+        seed_model: str = field(default="xlm-roberta-base", metadata={"help": "Seed model to convert long"})
 
     parser = HfArgumentParser((TrainingArguments, ModelArgs,))
 
     # TODO: change
     output_dir = "/work-ceph/ogalolu/models/long_models"
-    s_m = "sentence-transformers/LaBSE"
+    s_m = "xlm-roberta-base"
     m_p = 4096
     data_path = "/work/ogalolu/datasets/longformer_small_updated"
     training_args, model_args = parser.parse_args_into_dataclasses(look_for_args_file=False, args=[
@@ -90,9 +90,9 @@ def main():
         '--adam_epsilon', '1e-6',
         #'--max_steps', '3000',
         '--num_train_epochs', '1',
-        '--logging_steps', '5000',
+        '--logging_steps', '10000',
         '--prediction_loss_only','True',
-        '--save_steps', '500',
+        '--save_steps', '10000',
         '--max_grad_norm', '5.0',
         '--per_device_eval_batch_size', '1', # 8 
         '--per_device_train_batch_size', '1',  # total: 64
