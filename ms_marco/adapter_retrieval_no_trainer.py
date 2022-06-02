@@ -244,6 +244,11 @@ def parse_args():
         action="store_true",
         help="If True, freeze the whole model other than the classifier."
     )
+    parser.add_argument(
+        "--use_sliding_window_tokenization",
+        action="store_true",
+        help="If True, sliding window tokenization is used for splitting the articles."
+    )
     args = parser.parse_args()
 
     # Sanity checks
@@ -501,7 +506,8 @@ def main():
                 completed_steps += 1
                 running_loss += loss.item()
                 training_loss += loss.item()
-            if completed_steps % args.logging_steps == args.logging_steps - 1:
+            if completed_steps % args.logging_steps == args.logging_steps - 1 and completed_steps != last_saved_step:
+                # last_saved_step = completed_steps
                 logger.info(f"epoch: {epoch}, step {completed_steps+1}:, loss: {running_loss/args.logging_steps}")         
                 running_loss = 0.0      
             if completed_steps % args.saving_steps == args.saving_steps - 1 and completed_steps != last_saved_step:
@@ -533,7 +539,7 @@ def main():
                     # Modified
                     # TODO: change for other models
                     if args.custom_model in ("hierarchical", "sliding_window"):
-                        accelerator.save(obj=unwrapped_model.hierarchical_model.state_dict(),
+                        accelerator.save(obj=unwrapped_model.state_dict(),
                                         f=f"{args.output_dir}/model_{completed_steps+1}.pth")
      
                     else:
