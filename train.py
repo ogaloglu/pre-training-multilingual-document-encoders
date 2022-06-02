@@ -27,7 +27,7 @@ import math
 import os
 import random
 from random import randint
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import datasets
@@ -37,7 +37,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 import transformers
-from accelerate import Accelerator, DistributedType, DistributedDataParallelKwargs
+from accelerate import Accelerator, DistributedType, DistributedDataParallelKwargs, InitProcessGroupKwargs
 from huggingface_hub import Repository
 from tokenizers import Tokenizer
 from transformers import (
@@ -347,9 +347,12 @@ def main():
 
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
     # Modified: for handling unsued parameters
-    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+    # ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
     # accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
-    accelerator = Accelerator(fp16 = True, kwargs_handlers=[ddp_kwargs])
+
+    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+    ipg_kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=2400))
+    accelerator = Accelerator(kwargs_handlers=[ipg_kwargs, ddp_kwargs])
 
     # Modified: change the order
     # Handle the repository creation
@@ -552,7 +555,7 @@ def main():
     # Modified for checkpoint saving:
     min_loss = float("inf")
 
-        # Potentially load in the weights and states from a previous save
+    # Potentially load in the weights and states from a previous save
     if args.resume_from_checkpoint:
         if args.resume_from_checkpoint is not None or args.resume_from_checkpoint != "":
             accelerator.print(f"Resumed from checkpoint: {args.resume_from_checkpoint}")
@@ -607,7 +610,8 @@ def main():
                     accelerator.save_state(output_dir)
                     logger.info(f"model is saved after step {completed_steps}")
 
-            if step % args.logging_steps == args.logging_steps - 1:
+            if completed_steps % args.logging_steps == args.logging_steps - 1 and completed_steps != last_saved_step:
+                last_saved_step = completed_steps
                 # TODO change
                 if args.inspect:
                     model.eval()
@@ -621,10 +625,10 @@ def main():
                     losses = torch.cat(losses)
                     losses = losses[: len(eval_dataset)]
                     total_loss = torch.mean(losses)
-                    logger.info(f"epoch: {epoch}, step: {step+1}, train_loss: {running_loss/args.logging_steps}, val_loss: {total_loss}")
+                    logger.info(f"epoch: {epoch}, step: {completed_steps+1}, train_loss: {running_loss/args.logging_steps}, val_loss: {total_loss}")
                     model.train()
                 else:
-                    logger.info(f"epoch: {epoch}, step: {step+1}, loss: {running_loss/args.logging_steps}")
+                    logger.info(f"epoch: {epoch}, step: {completed_steps+1}, loss: {running_loss/args.logging_steps}")
                 running_loss = 0.0
             if completed_steps >= args.max_train_steps:
                 break
