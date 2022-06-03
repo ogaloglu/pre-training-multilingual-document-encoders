@@ -320,7 +320,7 @@ class HierarchicalClassificationModel(nn.Module):
     
 
 class DualModel(nn.Module):
-    def __init__(self, c_args, args, tokenizer, num_labels, regression=False, **kwargs):
+    def __init__(self, c_args, args, tokenizer, num_labels, regression=False, article_numbers=2, **kwargs):
         super().__init__()
         if c_args.custom_model == "hierarchical":
             # Modified: Now, different upper/lower pooling options than the pretrained model can be given.
@@ -350,6 +350,7 @@ class DualModel(nn.Module):
         self.scale = args.scale
         # TODO: maybe take this out
         self.use_hard_negatives = c_args.use_hard_negatives
+        self.article_numbers = article_numbers
         self.cross_entropy_loss = nn.CrossEntropyLoss()
 
         if args.similarity_fct == "cos_sim":
@@ -360,8 +361,7 @@ class DualModel(nn.Module):
     # Modified: Remove document related variables from article_1
     def forward(self, article_1, mask_1,  
                 article_2, mask_2, dcls_2, document_mask_2,
-                article_3=None, mask_3=None, dcls_3=None, document_mask_3=None,
-                article_4=None, mask_4=None, dcls_4=None, document_mask_4=None):
+                **kwargs):
 
         inter_output = self.lower_model(article_1, mask_1)
 
@@ -378,14 +378,16 @@ class DualModel(nn.Module):
                                            document_mask=document_mask_2
                                            )  # (batch_size, hidden_size)
         if self.use_hard_negatives:
-            output_3 = self.hierarchical_model(input_ids=article_3,
-                                               attention_mask=mask_3,
-                                               dcls=dcls_3,
-                                               document_mask=document_mask_3
+            temp_list = [output_2]
+            for idx in range(3, self.article_numbers + 1):
+                temp_output = self.hierarchical_model(input_ids=kwargs[f"article_{idx}"],
+                                               attention_mask=kwargs[f"mask_{idx}"],
+                                               dcls=kwargs[f"dcls_{idx}"],
+                                               document_mask=kwargs[f"document_mask_{idx}"]
                                                )  # (batch_size, hidden_size)
+                temp_list.append(temp_output)
 
-
-            scores_1 = self.similarity_fct(output_1, torch.cat([output_2, output_3])) * self.scale            
+            scores_1 = self.similarity_fct(output_1, torch.cat(temp_list)) * self.scale            
         else:
             scores_1 = self.similarity_fct(output_1, output_2) * self.scale            
 
