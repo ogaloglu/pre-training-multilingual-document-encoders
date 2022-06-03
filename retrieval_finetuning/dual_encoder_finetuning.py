@@ -363,7 +363,7 @@ def main():
         model = DualModel(c_args=args,
                           args=None if args.custom_model == "sliding_window" else pretrained_args,
                           tokenizer=tokenizer,
-                          article_numbers=self.article_numbers)
+                          article_numbers=args.article_numbers)
     else:
         raise NotImplementedError
         # config = AutoConfig.from_pretrained(args.pretrained_dir, num_labels=num_labels)
