@@ -251,7 +251,7 @@ def parse_args():
     )
     parser.add_argument(
         "--article_numbers",
-        action=int,
+        type=int,
         help="To decide on the number of negative examples to be used."
     )
 
@@ -501,7 +501,7 @@ def main():
                 completed_steps += 1
                 running_loss += loss.item()
                 training_loss += loss.item()
-            if completed_steps % args.logging_steps == args.logging_steps - 1
+            if completed_steps % args.logging_steps == args.logging_steps - 1:
                 logger.info(f"epoch: {epoch}, step {completed_steps+1}:, loss: {running_loss/args.logging_steps}")         
                 running_loss = 0.0 
             if completed_steps >= args.max_train_steps:
