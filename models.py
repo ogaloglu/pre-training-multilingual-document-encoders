@@ -318,3 +318,81 @@ class HierarchicalClassificationModel(nn.Module):
         for param in self.hierarchical_model.parameters():
             param.requires_grad = False
     
+
+class DualModel(nn.Module):
+    def __init__(self, c_args, args, tokenizer, num_labels, regression=False, **kwargs):
+        super().__init__()
+        if c_args.custom_model == "hierarchical":
+            # Modified: Now, different upper/lower pooling options than the pretrained model can be given.
+            # Note that "args" has a type "namedtuple"
+            if getattr(c_args, "upper_pooling", None) is not None:
+                args = args._replace(upper_pooling=c_args.upper_pooling)
+            if getattr(c_args, "lower_pooling", None) is not None:       
+                args = args._replace(lower_pooling=c_args.lower_pooling) 
+            self.hierarchical_model = HiearchicalModel(args, tokenizer)
+            if not c_args.custom_from_scratch:
+                cpt = torch.load(os.path.join(c_args.pretrained_dir, f"model_{c_args.pretrained_epoch}.pth"))
+                # Modified: If the model is saved differently, the following hack will be used
+                if "hierarchical_model" in "".join(cpt.keys()):
+                    cpt = {k[19:]: v for k, v in cpt.items() if "hierarchical_model" in k}                                               
+                self.hierarchical_model.load_state_dict(cpt)
+        elif c_args.custom_model == "sliding_window":
+            self.hierarchical_model = HiearchicalBaseModel(c_args, tokenizer)
+        else:
+            raise NotImplementedError("Respective model type is not supported.")
+
+        
+        self.lower_model = self.hierarchical_model.lower_model
+        self.lower_dropout = nn.Dropout(args.lower_dropout)
+        # Setting the pooling method of the upper encoder
+        self.lower_pooling = getattr(args, "lower_pooling", "cls")
+        # TODO: maybe scale in c_args
+        self.scale = args.scale
+        # TODO: maybe take this out
+        self.use_hard_negatives = c_args.use_hard_negatives
+        self.cross_entropy_loss = nn.CrossEntropyLoss()
+
+        if args.similarity_fct == "cos_sim":
+            self.similarity_fct = cos_sim
+        else:
+            raise NotImplementedError("Respective similarity function is not implemented.")
+
+    # Modified: Remove document related variables from article_1
+    def forward(self, article_1, mask_1,  
+                article_2, mask_2, dcls_2, document_mask_2,
+                article_3=None, mask_3=None, dcls_3=None, document_mask_3=None,
+                article_4=None, mask_4=None, dcls_4=None, document_mask_4=None):
+
+        inter_output = self.lower_model(article_1, mask_1)
+
+        if self.lower_pooling == "mean":
+            inter_output = get_mean(inter_output, a_m)  # (batch_size, hidden_size)
+        elif self.lower_pooling == "cls":
+            inter_output = inter_output[:, 0]  # (batch_size, hidden_size)
+
+        output_1 = inter_output = self.lower_dropout(inter_output)
+
+        output_2 = self.hierarchical_model(input_ids=article_2,
+                                           attention_mask=mask_2,
+                                           dcls=dcls_2,
+                                           document_mask=document_mask_2
+                                           )  # (batch_size, hidden_size)
+        if self.use_hard_negatives:
+            output_3 = self.hierarchical_model(input_ids=article_3,
+                                               attention_mask=mask_3,
+                                               dcls=dcls_3,
+                                               document_mask=document_mask_3
+                                               )  # (batch_size, hidden_size)
+
+
+            scores_1 = self.similarity_fct(output_1, torch.cat([output_2, output_3])) * self.scale            
+        else:
+            scores_1 = self.similarity_fct(output_1, output_2) * self.scale            
+
+        labels = torch.tensor(range(len(scores_1)), dtype=torch.long, device=scores_1.device)
+
+        return ContrastiveModelOutput(
+            loss=self.cross_entropy_loss(scores_1, labels),
+            scores_1=scores_1,
+            dist_1=torch.argmax(scores_1, dim=1),
+        )

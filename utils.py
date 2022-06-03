@@ -51,14 +51,21 @@ def tokenize_helper(article: str, tokenizer, args: argparse.Namespace, task: str
 
 
 def custom_tokenize(example: Union[arrow_dataset.Example, dict], tokenizer,
-                    args: argparse.Namespace, article_numbers: int, task:str = None) -> arrow_dataset.Example:
+                    args: argparse.Namespace, article_numbers: int, task:str = None, dual_encoder:bool = False) -> arrow_dataset.Example:
     """Controller function for tokenization."""
     if args.use_sliding_window_tokenization:
         func = sliding_tokenize
     else:
         func = tokenize_helper
+    
+    start = 1
+    if dual_encoder:
+        result = tokenizer(string, padding=True, truncation=True, max_length=max_seq_length, return_token_type_ids=False)
+        example["article_1"] = result["input_ids"]
+        example["mask_1"] = result["attention_mask"]
+        start += 1
 
-    for i in range(1, article_numbers + 1):
+    for i in range(start, article_numbers + 1):
         example[f"article_{i}"], example[f"mask_{i}"] = func(example[f"article_{i}"], tokenizer, args, task)
 
     return example

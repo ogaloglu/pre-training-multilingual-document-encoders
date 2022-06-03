@@ -17,11 +17,23 @@ class CustomDataCollator:
     return_tensors: str = "pt"
     consider_dcls: bool = True
     target_device: str = None
+    dual_encoder:bool = False
 
     def __call__(self, features: list) -> dict:
         batch = {}
+        start = 1
+        if self.dual_encoder:
+            temp_list = [{"input_ids": feature["article_1"], "attention_mask": feature["mask_1"] } for feature in features]
+            temp_batch = self.tokenizer.pad(
+                                temp_list,
+                                pad_to_multiple_of=8,
+                                return_tensors="pt"
+                            )
+            batch["article_1"] = temp_batch["input_ids"]
+            batch["mask_1"] = temp_batch["attention_mask"]
+            start += 1
 
-        for article_number in range(1, self.article_numbers + 1):
+        for article_number in range(start, self.article_numbers + 1):
             batch_sentences = list()
             # For sentence level masking
             batch_masks = list()
