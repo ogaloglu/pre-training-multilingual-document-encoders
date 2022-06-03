@@ -20,7 +20,7 @@ python $PROJECT_HOME/ms_marco/adapter_retrieval.py \
     --do_eval \
     --learning_rate 3e-5 \
     --eval_steps 5000 \
-    --save_steps 5000 \
+    --save_steps 25000 \
     --load_best_model_at_end \
     --evaluation_strategy steps \
     --num_train_epochs 1 \
@@ -28,6 +28,8 @@ python $PROJECT_HOME/ms_marco/adapter_retrieval.py \
     --log_level info \
     --weight_decay 1e-2 \
     --per_device_eval_batch_size 64 \
-    --per_device_train_batch_size 32 \
-    --gradient_accumulation_steps 1 \
-    --max_eval_samples 20000
+    --per_device_train_batch_size 16 \
+    --gradient_accumulation_steps 2 \
+    --max_eval_samples 20000 \
+    --resume_from_checkpoint /work-ceph/ogalolu/models/finetuned_models/ms_marco/labse-4096_2022_05_30-18_57_13/checkpoint-50000
+
