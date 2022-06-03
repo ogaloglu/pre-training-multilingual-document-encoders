@@ -348,8 +348,6 @@ class DualModel(nn.Module):
         self.lower_pooling = getattr(args, "lower_pooling", "cls")
         # TODO: maybe scale in c_args
         self.scale = args.scale
-        # TODO: maybe take this out
-        self.use_hard_negatives = c_args.use_hard_negatives
         self.article_numbers = article_numbers
         self.cross_entropy_loss = nn.CrossEntropyLoss()
 
@@ -377,7 +375,7 @@ class DualModel(nn.Module):
                                            dcls=dcls_2,
                                            document_mask=document_mask_2
                                            )  # (batch_size, hidden_size)
-        if self.use_hard_negatives:
+        if self.article_numbers > 2:
             temp_list = [output_2]
             for idx in range(3, self.article_numbers + 1):
                 temp_output = self.hierarchical_model(input_ids=kwargs[f"article_{idx}"],
