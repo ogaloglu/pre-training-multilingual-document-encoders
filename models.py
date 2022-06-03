@@ -320,7 +320,7 @@ class HierarchicalClassificationModel(nn.Module):
     
 
 class DualModel(nn.Module):
-    def __init__(self, c_args, args, tokenizer, num_labels, regression=False, article_numbers=2, **kwargs):
+    def __init__(self, c_args, args, tokenizer, article_numbers=2, **kwargs):
         super().__init__()
         if c_args.custom_model == "hierarchical":
             # Modified: Now, different upper/lower pooling options than the pretrained model can be given.
