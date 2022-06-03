@@ -398,7 +398,7 @@ def main():
                                            max_sentence_len=pretrained_args.max_seq_length if args.max_seq_length is None else args.max_seq_length,
                                            max_document_len=pretrained_args.max_document_length if args.max_document_length is None else args.max_document_length,
                                            article_numbers=args.article_numbers,
-                                           dual_encoder=True
+                                           dual_encoder=True,
                                            consider_dcls=True if args.custom_model == "hierarchical" else False)
 
     else:
