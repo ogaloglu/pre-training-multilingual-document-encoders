@@ -60,7 +60,7 @@ def custom_tokenize(example: Union[arrow_dataset.Example, dict], tokenizer,
     
     start = 1
     if dual_encoder:
-        result = tokenizer(string, padding=True, truncation=True, max_length=max_seq_length, return_token_type_ids=False)
+        result = tokenizer(example["article_1"], padding=True, truncation=True, max_length=max_seq_length, return_token_type_ids=False)
         example["article_1"] = result["input_ids"]
         example["mask_1"] = result["attention_mask"]
         start += 1
