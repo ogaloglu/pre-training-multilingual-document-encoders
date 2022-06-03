@@ -380,7 +380,7 @@ def main():
             # datasets["test"] = dataset_dev
             raw_datasets = raw_datasets.map(
                 custom_tokenize,
-                fn_kwargs={"tokenizer": tokenizer, "args": args, "dual_encoder": True},
+                fn_kwargs={"tokenizer": tokenizer, "args": args, "dual_encoder": True, "article_numbers": args.article_numbers},
                 num_proc=args.preprocessing_num_workers,
                 load_from_cache_file=False,                
                 desc="Running tokenizer on dataset",
