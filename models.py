@@ -342,6 +342,12 @@ class DualModel(nn.Module):
             raise NotImplementedError("Respective model type is not supported.")
 
         
+        # For freezing/unfreezing the whole HierarchicalModel
+        if c_args.unfreeze:
+            self._unfreeze_model()
+        elif c_args.freeze:
+            self._freeze_model()
+        
         self.lower_model = self.hierarchical_model.lower_model
         self.lower_dropout = nn.Dropout(args.lower_dropout)
         # Setting the pooling method of the upper encoder
@@ -355,6 +361,8 @@ class DualModel(nn.Module):
             self.similarity_fct = cos_sim
         else:
             raise NotImplementedError("Respective similarity function is not implemented.")
+        
+
 
     # Modified: Remove document related variables from article_1
     def forward(self, article_1, mask_1,  
@@ -368,31 +376,69 @@ class DualModel(nn.Module):
         elif self.lower_pooling == "cls":
             inter_output = inter_output[:, 0]  # (batch_size, hidden_size)
 
-        output_1 = inter_output = self.lower_dropout(inter_output)
+        output_1 = self.lower_dropout(inter_output)
 
         output_2 = self.hierarchical_model(input_ids=article_2,
                                            attention_mask=mask_2,
                                            dcls=dcls_2,
                                            document_mask=document_mask_2
                                            )  # (batch_size, hidden_size)
+        # if self.article_numbers > 2:
+        #     temp_list = [output_2]
+        #     for idx in range(3, self.article_numbers + 1):
+        #         temp_output = self.hierarchical_model(input_ids=kwargs[f"article_{idx}"],
+        #                                        attention_mask=kwargs[f"mask_{idx}"],
+        #                                        dcls=kwargs[f"dcls_{idx}"],
+        #                                        document_mask=kwargs[f"document_mask_{idx}"]
+        #                                        )  # (batch_size, hidden_size)
+        #         temp_list.append(temp_output)
+
+        #     scores_1 = self.similarity_fct(output_1, torch.cat(temp_list)) * self.scale            
+        # else:
+        #     scores_1 = self.similarity_fct(output_1, output_2) * self.scale            
+
+        # labels = torch.tensor(range(len(scores_1)), dtype=torch.long, device=scores_1.device)
+
+
+        # If there are multiple negative examples
         if self.article_numbers > 2:
-            temp_list = [output_2]
+            temp_list = [output_2.unsqueeze(0)]
             for idx in range(3, self.article_numbers + 1):
                 temp_output = self.hierarchical_model(input_ids=kwargs[f"article_{idx}"],
                                                attention_mask=kwargs[f"mask_{idx}"],
                                                dcls=kwargs[f"dcls_{idx}"],
                                                document_mask=kwargs[f"document_mask_{idx}"]
                                                )  # (batch_size, hidden_size)
-                temp_list.append(temp_output)
+                # Modified to a 3D Tensor
+                temp_list.append(temp_output.unsqueeze(0))
+            
+            output_2 = torch.cat(temp_list)
 
-            scores_1 = self.similarity_fct(output_1, torch.cat(temp_list)) * self.scale            
-        else:
-            scores_1 = self.similarity_fct(output_1, output_2) * self.scale            
+        scores_1 = []
+        for ind in range(article_1.shape[0]):
+            if self.article_numbers > 2:
+                # output_2 is 3D
+                temp_score = self.similarity_fct(output_1[ind], output_2[:, ind, :]) * self.scale   
+            else:
+                temp_score = self.similarity_fct(output_1[ind], output_2[ind]) * self.scale   
+            scores_1.append(temp_score)
 
-        labels = torch.tensor(range(len(scores_1)), dtype=torch.long, device=scores_1.device)
+
+        scores_1 = torch.cat(scores_1)         
+
+        # Index of the positive example (article_2) is always 0
+        labels = torch.tensor([0] *  article_1.shape[0], dtype=torch.long, device=scores_1.device)
 
         return ContrastiveModelOutput(
             loss=self.cross_entropy_loss(scores_1, labels),
             scores_1=scores_1,
             dist_1=torch.argmax(scores_1, dim=1),
         )
+
+    def _unfreeze_model(self):
+        for param in self.hierarchical_model.parameters():
+            param.requires_grad = True
+
+    def _freeze_model(self):
+        for param in self.hierarchical_model.parameters():
+            param.requires_grad = False
