@@ -486,7 +486,7 @@ def main():
 
     for epoch in range(args.num_train_epochs):
         model.train()
-        running_loss = 0.0
+        # running_loss = 0.0
         training_loss = 0.0
         for step, batch in enumerate(train_dataloader):
             # Modified for Hierarchical Classification Model
@@ -500,11 +500,11 @@ def main():
                 optimizer.zero_grad()
                 progress_bar.update(1)
                 completed_steps += 1
-                running_loss += loss.item()
+                # running_loss += loss.item()
                 training_loss += loss.item()
-            if completed_steps % args.logging_steps == args.logging_steps - 1:
-                logger.info(f"epoch: {epoch}, step {completed_steps+1}:, loss: {running_loss/args.logging_steps}")         
-                running_loss = 0.0 
+            # if completed_steps % args.logging_steps == args.logging_steps - 1:
+            #     logger.info(f"epoch: {epoch}, step {completed_steps+1}:, loss: {running_loss/args.logging_steps}")         
+            #     running_loss = 0.0 
             if completed_steps >= args.max_train_steps:
                 break  
 
@@ -535,18 +535,19 @@ def main():
             # TODO: change for other models
             if args.custom_model in ("hierarchical", "sliding_window"):
                 accelerator.save(obj=unwrapped_model.state_dict(),
-                                f=f"{args.output_dir}/model_{epochs+1}.pth")
+                                f=f"{args.output_dir}/model.pth")
+                                # f=f"{args.output_dir}/model_{epochs+1}.pth")
 
             else:
                 raise NotImplementedError
                 # unwrapped_model.save_pretrained(f"{args.output_dir}/checkpoint-{completed_steps+1}", save_function=accelerator.save)
-            logger.info(f"model after step {epochs+1} is saved")
+            logger.info(f"model after step {epoch+1} is saved")
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(args.output_dir)
         else:
             patience += 1
             if patience == args.max_patience:
-                logger.info(f"Traning stopped after the step {epochs+1}, due to patience parameter.")
+                logger.info(f"Traning stopped after the step {epoch+1}, due to patience parameter.")
                 break
         
 
