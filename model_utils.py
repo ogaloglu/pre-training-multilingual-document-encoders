@@ -93,14 +93,14 @@ class ContrastiveModelOutput(ModelOutput):
         scores_1 (torch.Tensor):
 
         dist_1 (torch.Tensor):
-
+s
         scores_2 (torch.Tensor):
 
         dist_2 (torch.Tensor):
 
     """
 
-    loss: torch.Tensor
+    loss: torch.Tensor = None
     scores_1: torch.Tensor = None
     dist_1: torch.Tensor = None
     scores_2: torch.Tensor = None
@@ -167,7 +167,7 @@ def create_long_model(seed_model, save_model_to, attention_window, max_pos):
     # copy position embeddings over and over to initialize the new position embeddings
     
     # MODIFIED: 
-    if seed_model in ("xlm-roberta-base", "roberta-base"):
+    if seed_model in ("xlm-roberta-base", "roberta-base" ):
         k = 2
     else:
         k = 0
