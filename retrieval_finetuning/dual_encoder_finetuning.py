@@ -534,9 +534,9 @@ def main():
             # Modified
             # TODO: change for other models
             if args.custom_model in ("hierarchical", "sliding_window"):
-                accelerator.save(obj=unwrapped_model.state_dict(),
-                                f=f"{args.output_dir}/model.pth")
-                                # f=f"{args.output_dir}/model_{epochs+1}.pth")
+                accelerator.save(obj=unwrapped_model.hierarchical_model.state_dict(),
+                                #f=f"{args.output_dir}/model_{epochs+1}.pth")
+                                 f=f"{args.output_dir}/model.pth")
 
             else:
                 raise NotImplementedError
