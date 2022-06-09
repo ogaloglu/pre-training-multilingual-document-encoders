@@ -193,6 +193,7 @@ def rerank_and_eval(
     preranker: str,
     prerank_dir: str,
     eval_preranker: bool=True,
+    dual_encoder: bool=False,
     **kwargs
 ) -> Dict:
   """
@@ -264,10 +265,13 @@ def rerank_and_eval(
             cross_inp = [[query, doc] for doc in docs_batch]
             
             # Cross-Encoder that predict more than 1 score, we use the last and apply softmax
-            if reranker.config.num_labels > 1:
-              scores = reranker.predict(cross_inp, apply_softmax=True)[:, 1].tolist()
-            else:
+            if dual_encoder:
               scores = reranker.predict(cross_inp).tolist()
+            else:
+              if reranker.config.num_labels > 1:
+                scores = reranker.predict(cross_inp, apply_softmax=True)[:, 1].tolist()
+              else:
+                scores = reranker.predict(cross_inp).tolist()
               
             doc_scores.extend(scores)
             docs_batch = []
