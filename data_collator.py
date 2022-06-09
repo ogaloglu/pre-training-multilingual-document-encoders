@@ -119,6 +119,9 @@ class CustomDataCollator:
         if self.consider_dcls:
             doc_len -= 1
 
+        # Modified: Important for 0 len documents
+        doc_len = max(doc_len, 1)
+
         mask_padding_array = [0 for i0 in range(len(masks[0]))]
         sentence_padding_array = [self.tokenizer.convert_tokens_to_ids(self.tokenizer.pad_token) for i0 in range(len(sentences[0]))]
 
