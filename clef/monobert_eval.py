@@ -3,7 +3,7 @@ import argparse
 import logging
 import sys
 
-from cross_encoder.model import CrossEncoder
+from cross_encoder.model import CrossEncoder, DualModelEvaluator
 from clef.evaluate import add_filehandler, logger, rerank_and_eval, map2str, print_results
 from config import crosslingual_lang_pairs, monolingual_lang_pairs, low_res_lang_pairs
 
@@ -21,8 +21,14 @@ parser.add_argument("--unfreeze", action="store_true")
 parser.add_argument("--freeze", action="store_true")
 parser.add_argument("--custom_from_scratch", action="store_true")
 parser.add_argument("--pretrained_epoch", type=str, required=False)
+parser.add_argument("--dual_encoder", action="store_true")
 
 args = parser.parse_args()
+
+if args.dual_encoder:
+  logger.info("Dual Encoder is being used to evaluate instances")
+else:
+  logger.info("Cross Encoder is being used to evaluate instances")
 
 os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 BASELINE_DIR = args.model_dir
@@ -49,12 +55,18 @@ def _evaluate_single_baseline(own_model, mode):
   
   logger.info(model_name_path)
   # Modified:
-  if args.custom_model in ("hierarchical", "sliding_window"):
-    reranker = CrossEncoder(model_name_path, hierarchical_args=args)
-  elif args.custom_model == "longformer":
-    reranker = CrossEncoder(model_name_path, max_length=4096, hierarchical_args=args)
+  if args.dual_encoder:
+    if args.custom_model in ("hierarchical", "sliding_window"):
+      reranker = DualModelEvaluator(model_name_path, hierarchical_args=args)
+    else:
+      raise NotImplementedError
   else:
-    reranker = CrossEncoder(model_name_path, max_length=512)
+    if args.custom_model in ("hierarchical", "sliding_window"):
+      reranker = CrossEncoder(model_name_path, hierarchical_args=args)
+    elif args.custom_model == "longformer":
+      reranker = CrossEncoder(model_name_path, max_length=4096, hierarchical_args=args)
+    else:
+      reranker = CrossEncoder(model_name_path, max_length=512)
   
   if mode == "mono": 
     prerankers = ["bm25"] # "unigram", "fasttext"
@@ -87,7 +99,8 @@ def _evaluate_single_baseline(own_model, mode):
         preranker=preranker_model,
         prerank_dir=args.prerank_dir,
         save_precision_values_dir=save_precision_values_dir,
-        path_query_translations=args.path_query_translations
+        path_query_translations=args.path_query_translations,
+        dual_encoder=args.dual_encoder
       )
       langpair2map[qlang + dlang] = map2str(eval_map=eval_result["MAP"], pvalue=eval_result["pvalue"])
       langpair2duration[qlang + dlang] = str(eval_result["duration_ms"])
