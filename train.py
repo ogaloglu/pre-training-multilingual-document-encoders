@@ -351,7 +351,7 @@ def main():
     # accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
 
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
-    ipg_kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=2400))
+    ipg_kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=3600))
     accelerator = Accelerator(kwargs_handlers=[ipg_kwargs, ddp_kwargs])
 
     # Modified: change the order
