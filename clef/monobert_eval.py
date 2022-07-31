@@ -20,7 +20,7 @@ parser.add_argument("--dropout", type=float, default=None)
 parser.add_argument("--unfreeze", action="store_true")
 parser.add_argument("--freeze", action="store_true")
 parser.add_argument("--custom_from_scratch", action="store_true")
-parser.add_argument("--pretrained_epoch", type=str, required=False)
+parser.add_argument("--pretrained_epoch", type=str, required=False, default=None)
 parser.add_argument("--dual_encoder", action="store_true")
 
 args = parser.parse_args()
