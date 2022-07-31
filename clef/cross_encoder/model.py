@@ -43,11 +43,14 @@ class DualModelExtended(nn.Module):
             if getattr(c_args, "lower_pooling", None) is not None:       
                 args = args._replace(lower_pooling=c_args.lower_pooling) 
             self.hierarchical_model = HiearchicalModel(args, tokenizer)
-
-            cpt = torch.load(os.path.join(c_args.pretrained_dir, "model.pth"))
-            # Modified: If the model is saved differently, the following hack will be used
-            if "hierarchical_model" in "".join(cpt.keys()):
-                cpt = {k[19:]: v for k, v in cpt.items() if "hierarchical_model" in k}                                               
+            if not c_args.custom_from_scratch:
+                if c_args.pretrained_epoch is not None:
+                    cpt = torch.load(os.path.join(c_args.pretrained_dir, f"model_{c_args.pretrained_epoch}.pth"))
+                else:
+                    cpt = torch.load(os.path.join(c_args.pretrained_dir, f"model.pth"))
+                # Modified: If the model is saved differently, the following hack will be used
+                if "hierarchical_model" in "".join(cpt.keys()):
+                    cpt = {k[19:]: v for k, v in cpt.items() if "hierarchical_model" in k}                                               
                 self.hierarchical_model.load_state_dict(cpt)
                 
         elif c_args.custom_model == "sliding_window":
@@ -146,7 +149,7 @@ class DualModelEvaluator():
             raise NotImplementedError("Respective models are not supported")   
 
     def predict(self, sentences: List[List[str]],
-                batch_size: int = 128,
+                batch_size: int = 20,
                 show_progress_bar: bool = None,
                 num_workers: int = 0,
                 convert_to_numpy: bool = True,
