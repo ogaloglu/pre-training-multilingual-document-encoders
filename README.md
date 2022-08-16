@@ -3,7 +3,7 @@
 This project is the codebase for the master thesis titled "Pre-training Multilingual Document Encoders".
 
 ## Installation Instructions
-* Project setup:
+* **Project setup**:
 ```bash
 git clone https://github.com/ogaloglu/pre-training-multilingual-document-encoders.git
 cd pre-training-multilingual-document-encoders
@@ -13,7 +13,7 @@ pip install -r requirements.txt
 ```
 Note: requirements.txt will be added
 
-* Accelerate configuration:
+* **Accelerate configuration**:
     * ```bash
         accelerate config
         ```
@@ -23,8 +23,8 @@ Note: requirements.txt will be added
 
 ## Data
 The links for the datasets will be shared
-* Pre-training data
-* Evaluation data
+* **Pre-training data**
+* **Evaluation data**
 
 ## Models
 The links for the pre-trained models will be shared
@@ -40,12 +40,12 @@ models
 
 ## Pre-Training
 
-* Multilingual Hierarchical Model (MHM)
+* **Multilingual Hierarchical Model (MHM)** \
 To pre-train MHM, the following script is used:
 ```bash
 bash run_train.sh
 ```
-<u>Key parameters</u>:
+*Key parameters*:
 ```bash
     --output_dir                        # Path of the resulting model
     --is_contrastive                    # Either the pretraining mode is contrastive or not
@@ -70,12 +70,12 @@ bash run_train.sh
     --frozen                            # Either the lower-level encoder is frozen or not
 ```
 
-* Multilingual Longformer
+* **Multilingual Longformer** \
 To train multilungual Longfromer: 
 ```bash
 python run_longformer.py
 ```
-<u>Key parameters</u>:
+*Key parameters*:
 ```bash
 --output_dir                            # Path of the resulting model
 --per_device_train_batch_size           # Batch size per device
@@ -86,13 +86,13 @@ python run_longformer.py
 ```
 
 ## Fine-Tuning
-* Multilingual Document Classification Dataset (MLDOC)
+* **Multilingual Document Classification Dataset (MLDOC)** \
 Suggested approach: notebooks/finetuning.ipynb \
 Alternative approach:
 ```bash
 bash run_finetune.sh
 ```
-<u>Key parameters</u>:
+*Key parameters*:
 ```bash
 --custom_model                          # One of: longformer, hierarchical
 --pretrained_dir                        # Path of the pre-trained model
@@ -100,12 +100,12 @@ bash run_finetune.sh
 --learning_rate                         # Learning rate
 ```
 
-* Cross-lingual Evaluation Forum (CLEF) 2003
+* **Cross-lingual Evaluation Forum (CLEF) 2003**
     * Bi-encoder: 
     ```bash
     bash retrieval_finetuning/run_dual_encoder_finetuning.sh
     ```
-    <u>Key parameters</u>:
+    *Key parameters*:
     ```bash
     --max_seq_length                    # Maximum sequence length
     --learning_rate                     # Learning rate
@@ -119,7 +119,7 @@ bash run_finetune.sh
     ```bash
     bash retrieval_finetuning/run_adapter_retrieval_no_trainer.sh
     ```
-    <u>Key parameters</u>:
+    *Key parameters*:
     ```bash
     --max_seq_length                    # Maximum sequence length, e.g. 128 for hierarchical model or 4096 for Longformer
     --custom_model                      # One of: longformer, hierarchical
@@ -131,22 +131,22 @@ bash run_finetune.sh
 
 
 ## Evaluation
-* MLDOC \
+* **MLDOC** \
 Suggested approach: notebooks/evaluate.ipynb \
 Alternative approach: 
 ```bash
 bash run_evaluate.sh
 ```
-<u>Key parameters</u>:
+*Key parameters*:
 ```bash
 --finetuned_dir                         # Path of fine-tuned model
 --output_dir                            # Path of log file
 ```
-* CLEF  2003
+* **CLEF  2003**
 ```bash
 bash run_clef_dual_encoder.sh
 ```
-<u>Key parameters</u>:
+*Key parameters*:
 ```bash
 --custom_model                          # One of: longformer, hierarchical
 --pretrained_dir                        # Path of model to be evaluated
