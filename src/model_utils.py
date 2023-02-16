@@ -93,7 +93,7 @@ class ContrastiveModelOutput(ModelOutput):
         scores_1 (torch.Tensor):
 
         dist_1 (torch.Tensor):
-s
+
         scores_2 (torch.Tensor):
 
         dist_2 (torch.Tensor):
@@ -105,6 +105,21 @@ s
     dist_1: torch.Tensor = None
     scores_2: torch.Tensor = None
     dist_2: torch.Tensor = None
+
+
+@dataclass
+class ContrastiveModelRepresentationOutput(ModelOutput):
+    """
+    Class for ContrastiveModel's outputs for document and query representations.
+    Args:
+        output_1 (torch.Tensor):
+
+        output_2 (torch.Tensor):
+
+    """
+
+    output_1: torch.Tensor = None
+    output_2: torch.Tensor = None
 
 
 def pretrained_masked_model_selector(seed_model: str) -> PreTrainedModel: 

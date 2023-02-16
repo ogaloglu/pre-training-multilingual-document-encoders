@@ -105,6 +105,7 @@ class DualModelEvaluator():
             self.hierarchical_args.pretrained_dir = self.hierarchical_args.model_dir
         else:
             self.custom_model = None
+            self.pretrained_args.max_seq_length = 128
         
         if self.custom_model == "hierarchical":
             self.pretrained_args = load_args(os.path.join(model_name, "pretrained_args.json"))
@@ -206,10 +207,11 @@ class DualModelEvaluator():
     def dual_tokenize(self, examples: list[list[str]]) -> list:
         """."""
         batch = []
-        if self.pretrained_args.use_sliding_window_tokenization:
-            func = sliding_tokenize
-        else:
-            func = tokenize_helper
+        if self.custom_model is not None:
+            if self.pretrained_args.use_sliding_window_tokenization:
+                func = sliding_tokenize
+            else:
+                func = tokenize_helper
             
         for i, example in enumerate(examples):
             tmp_dict = {}
@@ -217,8 +219,14 @@ class DualModelEvaluator():
                                     return_token_type_ids=False)    
             tmp_dict["article_1"] = result["input_ids"]
             tmp_dict["mask_1"] = result["attention_mask"]
-            
-            tmp_dict[f"article_2"], tmp_dict[f"mask_2"] = func(example[1], self.tokenizer, self.pretrained_args)
+
+            if self.custom_model is None:
+                result = self.tokenizer(example[1], padding=True, truncation=True, max_length=self.pretrained_args.max_seq_length,
+                        return_token_type_ids=False)    
+                tmp_dict["article_2"] = result["input_ids"]
+                tmp_dict["mask_2"] = result["attention_mask"]
+            else:
+                tmp_dict["article_2"], tmp_dict["mask_2"] = func(example[1], self.tokenizer, self.pretrained_args)
             batch.append(tmp_dict)
 
         return batch

@@ -32,7 +32,9 @@ else:
 
 os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 BASELINE_DIR = args.model_dir
-assert os.path.exists(BASELINE_DIR)
+# Modified
+# assert os.path.exists(BASELINE_DIR)
+model_name_path = BASELINE_DIR
 
 # Directory for reference precision values, used for statistical tests
 REF_PRECISION_VALS_DIR = os.path.join(BASELINE_DIR, "precision_values")
@@ -48,10 +50,11 @@ def _evaluate_single_baseline(own_model, mode):
     logger.setLevel(logging.INFO)
   logger.info(f"Save average precision values to {REF_PRECISION_VALS_DIR}")
   
-  if own_model:
-    model_name_path = BASELINE_DIR
-  else:
-    model_name_path = 'amberoad/bert-multilingual-passage-reranking-msmarco'
+  # Modified
+  # if own_model:
+  #   model_name_path = BASELINE_DIR
+  # else:
+  #   model_name_path = 'amberoad/bert-multilingual-passage-reranking-msmarco'
   
   logger.info(model_name_path)
   # Modified:

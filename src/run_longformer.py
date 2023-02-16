@@ -78,10 +78,11 @@ def main():
     parser = HfArgumentParser((TrainingArguments, ModelArgs,))
 
     # TODO: change
-    output_dir = "/work-ceph/ogalolu/models/long_models"
-    s_m = "xlm-roberta-base"
+    dataset_name = "extended"
+    output_dir = "/ceph/ogalolu/models/long_models_extended" if dataset_name == "extended" else "ceph/ogalolu/models/long_models"
+    s_m = "xlm-roberta-base" # sentence-transformers/LaBSE, xlm-roberta-base
     m_p = 4096
-    data_path = "/work/ogalolu/datasets/longformer_small_updated"
+    data_path = f"/work/ogalolu/datasets/longformer_{dataset_name}_updated"
     training_args, model_args = parser.parse_args_into_dataclasses(look_for_args_file=False, args=[
         '--output_dir', f'{output_dir}/{MODEL_MAPPING[s_m]}-{m_p}',
         '--warmup_steps', '500',
@@ -95,7 +96,7 @@ def main():
         '--save_steps', '10000',
         '--max_grad_norm', '5.0',
         '--per_device_eval_batch_size', '1', # 8 
-        '--per_device_train_batch_size', '1',  # total: 64
+        '--per_device_train_batch_size', '1',  # total: 0.064
         '--gradient_accumulation_steps', '32', # 64
         '--evaluation_strategy','steps',
         '--do_train',
