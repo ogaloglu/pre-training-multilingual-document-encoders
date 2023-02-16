@@ -1,6 +1,6 @@
 #!/bin/bash
 
-accelerate launch train.py \
+accelerate launch src/train.py \
     --train_file /work/ogalolu/datasets/final_small_en_0.3\
     --output_dir /work-ceph/ogalolu/models/trained_models \
     --is_contrastive
@@ -28,14 +28,3 @@ accelerate launch train.py \
     --upper_pooling mean \
     --model_name_or_path sentence-transformers/LaBSE\
     --per_device_train_batch_size 128
-    
-# --use_sliding_window_tokenization \
-# --frozen \
-# --upper_positional
-
-# --max_seq_length 128 \
-# --max_document_length 32 \
-# --upper_dim_feedforward 2048\
-# --upper_num_layers 2 \
-
-
