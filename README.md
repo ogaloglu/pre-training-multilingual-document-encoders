@@ -2,6 +2,19 @@
 
 This project is the codebase for the master thesis titled "Pre-training Multilingual Document Encoders".
 
+## Abstract
+Having built on latest advances in Natural Language Processing (NLP), the models such as BERT, GPT-2 and GPT-3 gained great success for various tasks. However, many of the published models are trained solely with English language data. Moreover, there is not enough amount of data in every language that Transformer-based models require during pre-training. This increases the significance of the multilingual models and cross-lingual transfer. There has been previous work on multilingual models including mBERT, XLM, XLM-R, and specialized ones that are used for sentence-level tasks such as mUSE, LASER, LaBSE and DistilmBERT. However, 
+there hasn't been a principled method yet to pre-train a multilingual model which is specialized for document-level tasks such as document classification or document retrieval.
+
+In this thesis, a new model called Multilingual Hierarchical Model (MHM) is proposed which has a hierarchical architecture and is contrastively pre-trained by a novel method.
+In order to carry out the contrastive pre-training, first, the X-C-WIKI dataset (Cross-lingual Wikipedia Dataset for Contrastive Learning) is created by using the Wikipedia corpora of different languages and the metadata information from Wikipedia. This way, negative and positive examples are found for each available article, which is needed for the contrastive objective.
+Using the respective dataset, different versions of MHM are pre-trained. MHM
+consist of two encoders, namely the lower Encoder and upper Encoder. The lower Encoder, which is based on a previously published multilingual model (e.g., LaBSE, XLM-R), produces the sentence representations which are then utilized by the upper Encoder to generate the document representation.
+Furthermore, multilingual Longformers are pre-trained on comparable multilingual data as the Longformer model was previously reported to work well for long documents.
+Our experiments show that the proposed model is able to capture cross-lingual document representations that can be transferred to other languages for cross-lingual tasks. Additionally, the multilingual Longformer achieved significant gains in the document classification task over the baseline models and deserves further investigation. 
+
+    
+
 ## Installation Instructions
 * **Project setup**:
 ```bash
