@@ -7,7 +7,7 @@ MAX_SEQ_LENGTH=4096
 CUSTOM_MODEL=longformer
 PRETRAINED_DIR=/work-ceph/ogalolu/models/long_models/labse-4096
 
-python $PROJECT_HOME/retrieval_finetuning/adapter_retrieval.py \
+python $PROJECT_HOME/src/retrieval_finetuning/adapter_retrieval.py \
     --overwrite_output_dir \
     --output_dir /work-ceph/ogalolu/models/finetuned_models/ms_marco \
     --cache_dir /work-ceph/ogalolu/models/finetuned_models/ms_marco/.cache/ \
