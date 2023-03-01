@@ -45,7 +45,6 @@ from transformers import (
 from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
 
-sys.path.insert(0, '/home/ogalolu/thesis/pre-training-multilingual-document-encoders')
 from utils import load_args, save_args, path_adder, preprocess_function, MODEL_MAPPING, select_base, retrieval_preprocess
 from model_utils import freeze_base, copy_proj_layers, pretrained_masked_model_selector, pretrained_model_selector, pretrained_sequence_model_selector
 from data_collator import CustomDataCollator

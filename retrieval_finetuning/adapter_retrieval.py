@@ -56,7 +56,6 @@ from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 from transformers import AdamW
 
-sys.path.insert(0, '/home/ogalolu/thesis/pre-training-multilingual-document-encoders')
 from utils import load_args, save_args, path_adder, preprocess_function, MODEL_MAPPING, select_base, retrieval_preprocess
 from model_utils import freeze_base, copy_proj_layers, pretrained_masked_model_selector, pretrained_model_selector, pretrained_sequence_model_selector
 from data_collator import CustomDataCollator
