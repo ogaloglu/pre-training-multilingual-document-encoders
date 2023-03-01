@@ -8,7 +8,7 @@ MAX_SEQ_LENGTH=128
 CUSTOM_MODEL=hierarchical
 PRETRAINED_DIR=/work-ceph/ogalolu/models/trained_models/labse_2_frozen_hard_128_cls_mean_0.0005_2022_04_19-12_31_23
 
-accelerate launch $PROJECT_HOME/retrieval_finetuning/dual_encoder_finetuning.py \
+accelerate launch $PROJECT_HOME/src/retrieval_finetuning/dual_encoder_finetuning.py \
     --output_dir /work-ceph/ogalolu/models/finetuned_models/clef \
     --pretrained_dir $PRETRAINED_DIR \
     --max_seq_length $MAX_SEQ_LENGTH \
