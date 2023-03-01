@@ -3,11 +3,22 @@ import os
 
 import torch
 from torch import nn
-from transformers import BertPreTrainedModel, AutoConfig, RobertaPreTrainedModel, BertModel, XLMRobertaModel
+from transformers import (
+    BertPreTrainedModel,
+    AutoConfig,
+    RobertaPreTrainedModel,
+    BertModel,
+    XLMRobertaModel,
+)
 from transformers.modeling_outputs import SequenceClassifierOutput
 from transformers.models.bert.modeling_bert import BertEmbeddings, BertEncoder
 
-from model_utils import cos_sim, get_extended_attention_mask, get_mean, ContrastiveModelOutput
+from model_utils import (
+    cos_sim,
+    get_extended_attention_mask,
+    get_mean,
+    ContrastiveModelOutput,
+)
 
 
 class LowerXLMREncoder(RobertaPreTrainedModel):
@@ -20,8 +31,10 @@ class LowerXLMREncoder(RobertaPreTrainedModel):
         self.init_weights()
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
-        model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None) 
-        output = model_output['last_hidden_state']  # (batch_size, words, hidden_size)
+        model_output = self.base_model(
+            input_ids, attention_mask=attention_mask, token_type_ids=None
+        )
+        output = model_output["last_hidden_state"]  # (batch_size, words, hidden_size)
         return output
 
 
@@ -33,8 +46,10 @@ class LowerBertEncoder(BertPreTrainedModel):
         self.init_weights()
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
-        model_output = self.base_model(input_ids, attention_mask=attention_mask, token_type_ids=None)
-        output = model_output['last_hidden_state']  # (batch_size, words, hidden_size)
+        model_output = self.base_model(
+            input_ids, attention_mask=attention_mask, token_type_ids=None
+        )
+        output = model_output["last_hidden_state"]  # (batch_size, words, hidden_size)
         return output
 
 
@@ -69,13 +84,18 @@ class HiearchicalBaseModel(nn.Module):
             inter_output = self.lower_dropout(inter_output)
             lower_encoded.append(inter_output)
 
-        lower_output = torch.stack(lower_encoded)  # (sentences, batch_size, hidden_size)
-        lower_output = lower_output.permute(1, 0, 2)  # (batch_size, sentences, hidden_size)
+        lower_output = torch.stack(
+            lower_encoded
+        )  # (sentences, batch_size, hidden_size)
+        lower_output = lower_output.permute(
+            1, 0, 2
+        )  # (batch_size, sentences, hidden_size)
 
         # Mean Pooling
-        # final_output = torch.mean(lower_output, 1)  # (batch_size, hidden_size)
-        final_output = get_mean(lower_output, document_mask)  # (batch_size, hidden_size)
-        
+        final_output = get_mean(
+            lower_output, document_mask
+        )  # (batch_size, hidden_size)
+
         return final_output
 
     def _freeze_lower(self):
@@ -141,8 +161,12 @@ class HiearchicalModel(nn.Module):
             inter_output = self.lower_dropout(inter_output)
             lower_encoded.append(inter_output)
 
-        lower_output = torch.stack(lower_encoded)  # (sentences, batch_size, hidden_size)
-        lower_output = lower_output.permute(1, 0, 2)  # (batch_size, sentences, hidden_size)
+        lower_output = torch.stack(
+            lower_encoded
+        )  # (sentences, batch_size, hidden_size)
+        lower_output = lower_output.permute(
+            1, 0, 2
+        )  # (batch_size, sentences, hidden_size)
 
         dcls_out = self.upper_embeddings.word_embeddings(dcls)
         lower_output = torch.cat([dcls_out, lower_output], dim=1)
@@ -152,12 +176,16 @@ class HiearchicalModel(nn.Module):
 
         # Added upper encoder level attention mask
         extended_document_mask = get_extended_attention_mask(document_mask)
-        encoder_output = self.upper_encoder(hidden_states=lower_output,
-                                            attention_mask=extended_document_mask)  # (batch_size, sentences, hidden_size)
+        encoder_output = self.upper_encoder(
+            hidden_states=lower_output,
+            attention_mask=extended_document_mask,
+        )  # (batch_size, sentences, hidden_size)
 
         upper_output = encoder_output["last_hidden_state"]
         if self.upper_pooling == "mean":
-            final_output = get_mean(upper_output, document_mask)  # (batch_size, hidden_size)
+            final_output = get_mean(
+                upper_output, document_mask
+            )  # (batch_size, hidden_size)
         elif self.upper_pooling == "dcls":
             final_output = upper_output[:, 0]  # (batch_size, hidden_size)
         else:
@@ -200,49 +228,80 @@ class ContrastiveModel(nn.Module):
         if args.similarity_fct == "cos_sim":
             self.similarity_fct = cos_sim
         else:
-            raise NotImplementedError("Respective similarity function is not implemented.")
+            raise NotImplementedError(
+                "Respective similarity function is not implemented."
+            )
 
-    def forward(self, article_1, mask_1, dcls_1, document_mask_1,
-                article_2, mask_2, dcls_2, document_mask_2,
-                article_3=None, mask_3=None, dcls_3=None, document_mask_3=None,
-                article_4=None, mask_4=None, dcls_4=None, document_mask_4=None):
-        output_1 = self.hierarchical_model(input_ids=article_1,
-                                           attention_mask=mask_1,
-                                           dcls=dcls_1,
-                                           document_mask=document_mask_1
-                                           )  # (batch_size, hidden_size)
-        output_2 = self.hierarchical_model(input_ids=article_2,
-                                           attention_mask=mask_2,
-                                           dcls=dcls_2,
-                                           document_mask=document_mask_2
-                                           )  # (batch_size, hidden_size)
+    def forward(
+        self,
+        article_1,
+        mask_1,
+        dcls_1,
+        document_mask_1,
+        article_2,
+        mask_2,
+        dcls_2,
+        document_mask_2,
+        article_3=None,
+        mask_3=None,
+        dcls_3=None,
+        document_mask_3=None,
+        article_4=None,
+        mask_4=None,
+        dcls_4=None,
+        document_mask_4=None,
+    ):
+        output_1 = self.hierarchical_model(
+            input_ids=article_1,
+            attention_mask=mask_1,
+            dcls=dcls_1,
+            document_mask=document_mask_1,
+        )  # (batch_size, hidden_size)
+        output_2 = self.hierarchical_model(
+            input_ids=article_2,
+            attention_mask=mask_2,
+            dcls=dcls_2,
+            document_mask=document_mask_2,
+        )  # (batch_size, hidden_size)
         if self.use_hard_negatives:
-            output_3 = self.hierarchical_model(input_ids=article_3,
-                                               attention_mask=mask_3,
-                                               dcls=dcls_3,
-                                               document_mask=document_mask_3
-                                               )  # (batch_size, hidden_size)
-            output_4 = self.hierarchical_model(input_ids=article_4,
-                                               attention_mask=mask_4,
-                                               dcls=dcls_4,
-                                               document_mask=document_mask_4
-                                               )  # (batch_size, hidden_size)
+            output_3 = self.hierarchical_model(
+                input_ids=article_3,
+                attention_mask=mask_3,
+                dcls=dcls_3,
+                document_mask=document_mask_3,
+            )  # (batch_size, hidden_size)
+            output_4 = self.hierarchical_model(
+                input_ids=article_4,
+                attention_mask=mask_4,
+                dcls=dcls_4,
+                document_mask=document_mask_4,
+            )  # (batch_size, hidden_size)
 
-            scores_1 = self.similarity_fct(output_1, torch.cat([output_2, output_3])) * self.scale
-            scores_2 = self.similarity_fct(output_2, torch.cat([output_1, output_4])) * self.scale
+            scores_1 = (
+                self.similarity_fct(output_1, torch.cat([output_2, output_3]))
+                * self.scale
+            )
+            scores_2 = (
+                self.similarity_fct(output_2, torch.cat([output_1, output_4]))
+                * self.scale
+            )
         else:
             scores_1 = self.similarity_fct(output_1, output_2) * self.scale
             scores_2 = self.similarity_fct(output_2, output_1) * self.scale
 
-        labels = torch.tensor(range(len(scores_1)), dtype=torch.long, device=scores_1.device)
+        labels = torch.tensor(
+            range(len(scores_1)), dtype=torch.long, device=scores_1.device
+        )
 
         return ContrastiveModelOutput(
-            loss=self.cross_entropy_loss(scores_1, labels) + self.cross_entropy_loss(scores_2, labels),
+            loss=self.cross_entropy_loss(scores_1, labels)
+            + self.cross_entropy_loss(scores_2, labels),
             scores_1=scores_1,
             dist_1=torch.argmax(scores_1, dim=1),
             scores_2=scores_2,
             dist_2=torch.argmax(scores_2, dim=1),
         )
+
 
 class HierarchicalClassificationModel(nn.Module):
     def __init__(self, c_args, args, tokenizer, num_labels, regression=False, **kwargs):
@@ -252,14 +311,20 @@ class HierarchicalClassificationModel(nn.Module):
             # Note that "args" has a type "namedtuple"
             if getattr(c_args, "upper_pooling", None) is not None:
                 args = args._replace(upper_pooling=c_args.upper_pooling)
-            if getattr(c_args, "lower_pooling", None) is not None:       
-                args = args._replace(lower_pooling=c_args.lower_pooling) 
+            if getattr(c_args, "lower_pooling", None) is not None:
+                args = args._replace(lower_pooling=c_args.lower_pooling)
             self.hierarchical_model = HiearchicalModel(args, tokenizer)
             if not c_args.custom_from_scratch:
-                cpt = torch.load(os.path.join(c_args.pretrained_dir, f"model_{c_args.pretrained_epoch}.pth"))
+                cpt = torch.load(
+                    os.path.join(
+                        c_args.pretrained_dir, f"model_{c_args.pretrained_epoch}.pth"
+                    )
+                )
                 # Modified: If the model is saved differently, the following hack will be used
                 if "hierarchical_model" in "".join(cpt.keys()):
-                    cpt = {k[19:]: v for k, v in cpt.items() if "hierarchical_model" in k}                                               
+                    cpt = {
+                        k[19:]: v for k, v in cpt.items() if "hierarchical_model" in k
+                    }
                 self.hierarchical_model.load_state_dict(cpt)
         elif c_args.custom_model == "sliding_window":
             self.hierarchical_model = HiearchicalBaseModel(c_args, tokenizer)
@@ -280,14 +345,17 @@ class HierarchicalClassificationModel(nn.Module):
         elif c_args.freeze:
             self._freeze_model()
 
-        self.classifier = nn.Linear(self.hierarchical_model.lower_config.hidden_size, self.num_labels)
+        self.classifier = nn.Linear(
+            self.hierarchical_model.lower_config.hidden_size, self.num_labels
+        )
 
     def forward(self, article_1, mask_1, document_mask_1, dcls_1=None, labels=None):
-        output = self.hierarchical_model(input_ids=article_1,
-                                           attention_mask=mask_1,
-                                           dcls=dcls_1,
-                                           document_mask=document_mask_1
-                                           )  # (batch_size, hidden_size)
+        output = self.hierarchical_model(
+            input_ids=article_1,
+            attention_mask=mask_1,
+            dcls=dcls_1,
+            document_mask=document_mask_1,
+        )  # (batch_size, hidden_size)
 
         if self.dropout is not None:
             output = self.dropout(output)
@@ -296,7 +364,9 @@ class HierarchicalClassificationModel(nn.Module):
         # Modified: For clef ranking task.
         loss = None
         if labels is not None:
-            if self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
+            if self.num_labels > 1 and (
+                labels.dtype == torch.long or labels.dtype == torch.int
+            ):
                 loss_fct = nn.CrossEntropyLoss()
                 loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
             elif self.regression:
@@ -305,10 +375,7 @@ class HierarchicalClassificationModel(nn.Module):
             else:
                 loss_fct = nn.BCEWithLogitsLoss()
                 loss = loss_fct(logits, torch.unsqueeze(labels.float(), 1))
-        return SequenceClassifierOutput(
-            loss=loss,
-            logits=logits
-        )
+        return SequenceClassifierOutput(loss=loss, logits=logits)
 
     def _unfreeze_model(self):
         for param in self.hierarchical_model.parameters():
@@ -317,7 +384,7 @@ class HierarchicalClassificationModel(nn.Module):
     def _freeze_model(self):
         for param in self.hierarchical_model.parameters():
             param.requires_grad = False
-    
+
 
 class DualModel(nn.Module):
     def __init__(self, c_args, args, tokenizer, article_numbers=2, **kwargs):
@@ -327,27 +394,32 @@ class DualModel(nn.Module):
             # Note that "args" has a type "namedtuple"
             if getattr(c_args, "upper_pooling", None) is not None:
                 args = args._replace(upper_pooling=c_args.upper_pooling)
-            if getattr(c_args, "lower_pooling", None) is not None:       
-                args = args._replace(lower_pooling=c_args.lower_pooling) 
+            if getattr(c_args, "lower_pooling", None) is not None:
+                args = args._replace(lower_pooling=c_args.lower_pooling)
             self.hierarchical_model = HiearchicalModel(args, tokenizer)
             if not c_args.custom_from_scratch:
-                cpt = torch.load(os.path.join(c_args.pretrained_dir, f"model_{c_args.pretrained_epoch}.pth"))
+                cpt = torch.load(
+                    os.path.join(
+                        c_args.pretrained_dir, f"model_{c_args.pretrained_epoch}.pth"
+                    )
+                )
                 # Modified: If the model is saved differently, the following hack will be used
                 if "hierarchical_model" in "".join(cpt.keys()):
-                    cpt = {k[19:]: v for k, v in cpt.items() if "hierarchical_model" in k}                                               
+                    cpt = {
+                        k[19:]: v for k, v in cpt.items() if "hierarchical_model" in k
+                    }
                 self.hierarchical_model.load_state_dict(cpt)
         elif c_args.custom_model == "sliding_window":
             self.hierarchical_model = HiearchicalBaseModel(c_args, tokenizer)
         else:
             raise NotImplementedError("Respective model type is not supported.")
 
-        
         # For freezing/unfreezing the whole HierarchicalModel
         if c_args.unfreeze:
             self._unfreeze_model()
         elif c_args.freeze:
             self._freeze_model()
-        
+
         self.lower_model = self.hierarchical_model.lower_model
         self.lower_dropout = nn.Dropout(args.lower_dropout)
         # Setting the pooling method of the upper encoder
@@ -360,14 +432,14 @@ class DualModel(nn.Module):
         if args.similarity_fct == "cos_sim":
             self.similarity_fct = cos_sim
         else:
-            raise NotImplementedError("Respective similarity function is not implemented.")
-        
-
+            raise NotImplementedError(
+                "Respective similarity function is not implemented."
+            )
 
     # Modified: Remove document related variables from article_1
-    def forward(self, article_1, mask_1,  
-                article_2, mask_2, dcls_2, document_mask_2,
-                **kwargs):
+    def forward(
+        self, article_1, mask_1, article_2, mask_2, dcls_2, document_mask_2, **kwargs
+    ):
 
         inter_output = self.lower_model(article_1, mask_1)
 
@@ -378,11 +450,12 @@ class DualModel(nn.Module):
 
         output_1 = self.lower_dropout(inter_output)
 
-        output_2 = self.hierarchical_model(input_ids=article_2,
-                                           attention_mask=mask_2,
-                                           dcls=dcls_2,
-                                           document_mask=document_mask_2
-                                           )  # (batch_size, hidden_size)
+        output_2 = self.hierarchical_model(
+            input_ids=article_2,
+            attention_mask=mask_2,
+            dcls=dcls_2,
+            document_mask=document_mask_2,
+        )  # (batch_size, hidden_size)
         # if self.article_numbers > 2:
         #     temp_list = [output_2]
         #     for idx in range(3, self.article_numbers + 1):
@@ -393,41 +466,46 @@ class DualModel(nn.Module):
         #                                        )  # (batch_size, hidden_size)
         #         temp_list.append(temp_output)
 
-        #     scores_1 = self.similarity_fct(output_1, torch.cat(temp_list)) * self.scale            
+        #     scores_1 = self.similarity_fct(output_1, torch.cat(temp_list)) * self.scale
         # else:
-        #     scores_1 = self.similarity_fct(output_1, output_2) * self.scale            
+        #     scores_1 = self.similarity_fct(output_1, output_2) * self.scale
 
         # labels = torch.tensor(range(len(scores_1)), dtype=torch.long, device=scores_1.device)
-
 
         # If there are multiple negative examples
         if self.article_numbers > 2:
             temp_list = [output_2.unsqueeze(0)]
             for idx in range(3, self.article_numbers + 1):
-                temp_output = self.hierarchical_model(input_ids=kwargs[f"article_{idx}"],
-                                               attention_mask=kwargs[f"mask_{idx}"],
-                                               dcls=kwargs[f"dcls_{idx}"],
-                                               document_mask=kwargs[f"document_mask_{idx}"]
-                                               )  # (batch_size, hidden_size)
+                temp_output = self.hierarchical_model(
+                    input_ids=kwargs[f"article_{idx}"],
+                    attention_mask=kwargs[f"mask_{idx}"],
+                    dcls=kwargs[f"dcls_{idx}"],
+                    document_mask=kwargs[f"document_mask_{idx}"],
+                )  # (batch_size, hidden_size)
                 # Modified to a 3D Tensor
                 temp_list.append(temp_output.unsqueeze(0))
-            
+
             output_2 = torch.cat(temp_list)
 
         scores_1 = []
         for ind in range(article_1.shape[0]):
             if self.article_numbers > 2:
                 # output_2 is 3D
-                temp_score = self.similarity_fct(output_1[ind], output_2[:, ind, :]) * self.scale   
+                temp_score = (
+                    self.similarity_fct(output_1[ind], output_2[:, ind, :]) * self.scale
+                )
             else:
-                temp_score = self.similarity_fct(output_1[ind], output_2[ind]) * self.scale   
+                temp_score = (
+                    self.similarity_fct(output_1[ind], output_2[ind]) * self.scale
+                )
             scores_1.append(temp_score)
 
-
-        scores_1 = torch.cat(scores_1)         
+        scores_1 = torch.cat(scores_1)
 
         # Index of the positive example (article_2) is always 0
-        labels = torch.tensor([0] *  article_1.shape[0], dtype=torch.long, device=scores_1.device)
+        labels = torch.tensor(
+            [0] * article_1.shape[0], dtype=torch.long, device=scores_1.device
+        )
 
         return ContrastiveModelOutput(
             loss=self.cross_entropy_loss(scores_1, labels),

@@ -26,20 +26,27 @@ import logging
 import math
 import os
 import random
-from random import randint
 from datetime import datetime, timedelta
 from pathlib import Path
+from random import randint
+
+from tqdm.auto import tqdm
 
 import datasets
 import torch
-from datasets import load_dataset, load_from_disk
-from torch.utils.data import DataLoader
-from tqdm.auto import tqdm
-
 import transformers
-from accelerate import Accelerator, DistributedType, DistributedDataParallelKwargs, InitProcessGroupKwargs
+from accelerate import (
+    Accelerator,
+    DistributedDataParallelKwargs,
+    DistributedType,
+    InitProcessGroupKwargs,
+)
+from data_collator import CustomDataCollator
+from datasets import load_dataset, load_from_disk
 from huggingface_hub import Repository
+from models import ContrastiveModel
 from tokenizers import Tokenizer
+from torch.utils.data import DataLoader
 from transformers import (
     AdamW,
     AutoTokenizer,
@@ -49,17 +56,19 @@ from transformers import (
 )
 from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
-
-from models import ContrastiveModel
-from data_collator import CustomDataCollator
-from utils import custom_tokenize, save_args, path_adder
+from utils import custom_tokenize, path_adder, save_args
 
 logger = logging.getLogger(__name__)
-require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt")
+require_version(
+    "datasets>=1.8.0",
+    "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt",
+)
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Pretrain multilingual document encoder")
+    parser = argparse.ArgumentParser(
+        description="Pretrain multilingual document encoder"
+    )
     parser.add_argument(
         "--dataset_name",
         type=str,
@@ -73,10 +82,16 @@ def parse_arguments():
         help="The configuration name of the dataset to use (via the datasets library).",
     )
     parser.add_argument(
-        "--train_file", type=str, default=None, help="A csv or a json file containing the training data."
+        "--train_file",
+        type=str,
+        default=None,
+        help="A csv or a json file containing the training data.",
     )
     parser.add_argument(
-        "--validation_file", type=str, default=None, help="A csv or a json file containing the validation data."
+        "--validation_file",
+        type=str,
+        default=None,
+        help="A csv or a json file containing the validation data.",
     )
     parser.add_argument(
         "--validation_split_percentage",
@@ -129,8 +144,15 @@ def parse_arguments():
         default=5e-5,
         help="Initial learning rate (after the potential warmup period) to use.",
     )
-    parser.add_argument("--weight_decay", type=float, default=0.0, help="Weight decay to use.")
-    parser.add_argument("--num_train_epochs", type=int, default=3, help="Total number of training epochs to perform.")
+    parser.add_argument(
+        "--weight_decay", type=float, default=0.0, help="Weight decay to use."
+    )
+    parser.add_argument(
+        "--num_train_epochs",
+        type=int,
+        default=3,
+        help="Total number of training epochs to perform.",
+    )
     parser.add_argument(
         "--max_train_steps",
         type=int,
@@ -149,13 +171,27 @@ def parse_arguments():
         type=str,
         default="linear",
         help="The scheduler type to use.",
-        choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"],
+        choices=[
+            "linear",
+            "cosine",
+            "cosine_with_restarts",
+            "polynomial",
+            "constant",
+            "constant_with_warmup",
+        ],
     )
     parser.add_argument(
-        "--num_warmup_steps", type=int, default=0, help="Number of steps for the warmup in the lr scheduler."
+        "--num_warmup_steps",
+        type=int,
+        default=0,
+        help="Number of steps for the warmup in the lr scheduler.",
     )
-    parser.add_argument("--output_dir", type=str, default=None, help="Where to store the final model.")
-    parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
+    parser.add_argument(
+        "--output_dir", type=str, default=None, help="Where to store the final model."
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None, help="A seed for reproducible training."
+    )
     parser.add_argument(
         "--max_seq_length",
         type=int,
@@ -170,13 +206,24 @@ def parse_arguments():
         help="The number of processes to use for the preprocessing.",
     )
     parser.add_argument(
-        "--overwrite_cache", type=bool, default=False, help="Overwrite the cached training and evaluation sets"
+        "--overwrite_cache",
+        type=bool,
+        default=False,
+        help="Overwrite the cached training and evaluation sets",
     )
-    parser.add_argument("--push_to_hub", action="store_true", help="Whether or not to push the model to the Hub.")
     parser.add_argument(
-        "--hub_model_id", type=str, help="The name of the repository to keep in sync with the local `output_dir`."
+        "--push_to_hub",
+        action="store_true",
+        help="Whether or not to push the model to the Hub.",
     )
-    parser.add_argument("--hub_token", type=str, help="The token to use to push to the Model Hub.")
+    parser.add_argument(
+        "--hub_model_id",
+        type=str,
+        help="The name of the repository to keep in sync with the local `output_dir`.",
+    )
+    parser.add_argument(
+        "--hub_token", type=str, help="The token to use to push to the Model Hub."
+    )
 
     # Modified: Additional parameters for ContrastiveModel
     parser.add_argument(
@@ -191,7 +238,7 @@ def parse_arguments():
         default="cos_sim",
         # TODO: add choices for similarity function
         help="Similarity function between sentence embeddings. By default, cos_sim."
-             "Can also be set to dot product (and then set scale to 1).",
+        "Can also be set to dot product (and then set scale to 1).",
     )
     parser.add_argument(
         "--tokenizer_file",
@@ -205,7 +252,7 @@ def parse_arguments():
         default=None,
         required=True,
         help="The maximum number of sentences each document can have. Documents are either truncated"
-             "or padded if their length is different.",
+        "or padded if their length is different.",
     )
     # parser.add_argument(
     #     "--upper_hidden_dimension",
@@ -262,22 +309,22 @@ def parse_arguments():
     parser.add_argument(
         "--frozen",
         action="store_true",
-        help="Either the lower level encoder is frozen or not."
+        help="Either the lower level encoder is frozen or not.",
     )
     parser.add_argument(
         "--upper_positional",
         action="store_true",
-        help="Either positional embeddings are used for the upper encoder or not."
+        help="Either positional embeddings are used for the upper encoder or not.",
     )
     parser.add_argument(
         "--use_hard_negatives",
         action="store_true",
-        help="Either include hard negatives or not."
+        help="Either include hard negatives or not.",
     )
     parser.add_argument(
         "--is_contrastive",
         action="store_true",
-        help="Either the pretraining mode is contrastive or not."
+        help="Either the pretraining mode is contrastive or not.",
     )
     parser.add_argument(
         "--logging_steps",
@@ -289,26 +336,26 @@ def parse_arguments():
         "--inspect",
         action="store_true",
         help="If True, validation loss is checked in each logging step"
-             "(rather than only after each epoch)."
+        "(rather than only after each epoch).",
     )
     parser.add_argument(
         "--use_sliding_window_tokenization",
         action="store_true",
-        help="If True, sliding window tokenization is used for splitting the articles."
+        help="If True, sliding window tokenization is used for splitting the articles.",
     )
     parser.add_argument(
         "--upper_pooling",
         type=str,
         required=True,
         choices=["mean", "dcls"],
-        help="Determines to pooling method of the upper encoder."
+        help="Determines to pooling method of the upper encoder.",
     )
     parser.add_argument(
         "--lower_pooling",
         type=str,
         default="cls",
         choices=["mean", "cls"],
-        help="Determines to pooling method of the lower encoder."
+        help="Determines to pooling method of the lower encoder.",
     )
     parser.add_argument(
         "--stride",
@@ -330,14 +377,20 @@ def parse_arguments():
     )
     args = parser.parse_args()
     # Sanity checks
-    if args.dataset_name is None and args.train_file is None and args.validation_file is None:
+    if (
+        args.dataset_name is None
+        and args.train_file is None
+        and args.validation_file is None
+    ):
         raise ValueError("Need either a dataset name or a training/validation file.")
-    
+
     if args.use_sliding_window_tokenization and args.stride is None:
         raise ValueError("Need stride value for sliding window.")
 
     if args.push_to_hub:
-        assert args.output_dir is not None, "Need an `output_dir` to create a repo when `--push_to_hub` is passed."
+        assert (
+            args.output_dir is not None
+        ), "Need an `output_dir` to create a repo when `--push_to_hub` is passed."
 
     return args
 
@@ -347,9 +400,7 @@ def main():
 
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
     # Modified: for handling unsued parameters
-    # ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
-    # accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
-
+    
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
     ipg_kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=3600))
     accelerator = Accelerator(kwargs_handlers=[ipg_kwargs, ddp_kwargs])
@@ -359,7 +410,9 @@ def main():
     if accelerator.is_main_process:
         if args.push_to_hub:
             if args.hub_model_id is None:
-                repo_name = get_full_repo_name(Path(args.output_dir).name, token=args.hub_token)
+                repo_name = get_full_repo_name(
+                    Path(args.output_dir).name, token=args.hub_token
+                )
             else:
                 repo_name = args.hub_model_id
             repo = Repository(args.output_dir, clone_from=repo_name)
@@ -379,14 +432,16 @@ def main():
         # Modified
         handlers=[
             logging.FileHandler(os.path.join(args.output_dir, "loginfo.log")),
-            logging.StreamHandler()
-        ]
+            logging.StreamHandler(),
+        ],
     )
     logger.info(accelerator.state)
 
     # Setup logging, we only want one process per machine to log things on the screen.
     # accelerator.is_local_main_process is only True for one process per machine.
-    logger.setLevel(logging.INFO if accelerator.is_local_main_process else logging.ERROR)
+    logger.setLevel(
+        logging.INFO if accelerator.is_local_main_process else logging.ERROR
+    )
     if accelerator.is_local_main_process:
         datasets.utils.logging.set_verbosity_warning()
         transformers.utils.logging.set_verbosity_info()
@@ -425,9 +480,13 @@ def main():
 
     # Modified for custom tokenizer file
     if args.tokenizer_name:
-        tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name, use_fast=not args.use_slow_tokenizer)
+        tokenizer = AutoTokenizer.from_pretrained(
+            args.tokenizer_name, use_fast=not args.use_slow_tokenizer
+        )
     elif args.model_name_or_path:
-        tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=not args.use_slow_tokenizer)
+        tokenizer = AutoTokenizer.from_pretrained(
+            args.model_name_or_path, use_fast=not args.use_slow_tokenizer
+        )
     elif args.tokenizer_file:
         base_tokenizer = Tokenizer.from_file(args.tokenizer_file)
         tokenizer = BertTokenizerFast(tokenizer_object=base_tokenizer)
@@ -453,13 +512,17 @@ def main():
     else:
         article_numbers = 2
         # remove hard negatives
-        raw_datasets = raw_datasets.remove_columns(['article_3', 'article_4'])
+        raw_datasets = raw_datasets.remove_columns(["article_3", "article_4"])
     logger.info("article number is: %s ", article_numbers)
 
     with accelerator.main_process_first():
         tokenized_datasets = raw_datasets.map(
             custom_tokenize,
-            fn_kwargs={"tokenizer": tokenizer, "args": args, "article_numbers": article_numbers},
+            fn_kwargs={
+                "tokenizer": tokenizer,
+                "args": args,
+                "article_numbers": article_numbers,
+            },
             num_proc=args.preprocessing_num_workers,
             load_from_cache_file=not args.overwrite_cache,
             desc="Running tokenizer on dataset",
@@ -474,18 +537,26 @@ def main():
 
     # Data collator
     # Modified: CustomDataCollator for documents
-    data_collator = CustomDataCollator(tokenizer=tokenizer,
-                                       max_sentence_len=args.max_seq_length,
-                                       max_document_len=args.max_document_length,
-                                       article_numbers=article_numbers)
+    data_collator = CustomDataCollator(
+        tokenizer=tokenizer,
+        max_sentence_len=args.max_seq_length,
+        max_document_len=args.max_document_length,
+        article_numbers=article_numbers,
+    )
 
     # DataLoaders creation:
     train_dataloader = DataLoader(
-        train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size,
+        train_dataset,
+        shuffle=True,
+        collate_fn=data_collator,
+        batch_size=args.per_device_train_batch_size,
         # num_workers=4, pin_memory=True
     )
-    eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size,
-                                 # num_workers=4, pin_memory=True
+    eval_dataloader = DataLoader(
+        eval_dataset,
+        collate_fn=data_collator,
+        batch_size=args.per_device_eval_batch_size,
+        # num_workers=4, pin_memory=True
     )
 
     # Optimizer
@@ -493,11 +564,19 @@ def main():
     no_decay = ["bias", "LayerNorm.weight"]
     optimizer_grouped_parameters = [
         {
-            "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+            "params": [
+                p
+                for n, p in model.named_parameters()
+                if not any(nd in n for nd in no_decay)
+            ],
             "weight_decay": args.weight_decay,
         },
         {
-            "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+            "params": [
+                p
+                for n, p in model.named_parameters()
+                if any(nd in n for nd in no_decay)
+            ],
             "weight_decay": 0.0,
         },
     ]
@@ -516,11 +595,15 @@ def main():
     # shorter in multiprocess)
 
     # Scheduler and math around the number of training steps.
-    num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
+    num_update_steps_per_epoch = math.ceil(
+        len(train_dataloader) / args.gradient_accumulation_steps
+    )
     if args.max_train_steps is None:
         args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
     else:
-        args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
+        args.num_train_epochs = math.ceil(
+            args.max_train_steps / num_update_steps_per_epoch
+        )
 
     lr_scheduler = get_scheduler(
         name=args.lr_scheduler_type,
@@ -537,17 +620,27 @@ def main():
         checkpointing_steps = None
 
     # Train!
-    total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
+    total_batch_size = (
+        args.per_device_train_batch_size
+        * accelerator.num_processes
+        * args.gradient_accumulation_steps
+    )
 
     logger.info("***** Running training *****")
     logger.info(f"  Num examples = {len(train_dataset)}")
     logger.info(f"  Num Epochs = {args.num_train_epochs}")
-    logger.info(f"  Instantaneous batch size per device = {args.per_device_train_batch_size}")
-    logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
+    logger.info(
+        f"  Instantaneous batch size per device = {args.per_device_train_batch_size}"
+    )
+    logger.info(
+        f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}"
+    )
     logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
     # Only show the progress bar once on each machine.
-    progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
+    progress_bar = tqdm(
+        range(args.max_train_steps), disable=not accelerator.is_local_main_process
+    )
     completed_steps = 0
     starting_epoch = 0
     last_saved_step = 0
@@ -565,7 +658,9 @@ def main():
             # Get the most recent checkpoint
             dirs = [f.name for f in os.scandir(os.getcwd()) if f.is_dir()]
             dirs.sort(key=os.path.getctime)
-            path = dirs[-1]  # Sorts folders by date modified, most recent checkpoint is the last
+            path = dirs[
+                -1
+            ]  # Sorts folders by date modified, most recent checkpoint is the last
         # Extract `epoch_{i}` or `step_{i}`
         training_difference = os.path.splitext(path)[0]
 
@@ -591,7 +686,10 @@ def main():
             outputs = model(**batch)
             loss = outputs.loss / args.gradient_accumulation_steps
             accelerator.backward(loss)
-            if step % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
+            if (
+                step % args.gradient_accumulation_steps == 0
+                or step == len(train_dataloader) - 1
+            ):
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
@@ -600,9 +698,12 @@ def main():
                 # Modified
                 running_loss += loss.item()
                 # logger.info(f"epoch: {epoch}, step: {step+1}, batch_loss: {loss.item()}")
-                
+
             if isinstance(checkpointing_steps, int):
-                if completed_steps % checkpointing_steps == 0 and completed_steps != last_saved_step:
+                if (
+                    completed_steps % checkpointing_steps == 0
+                    and completed_steps != last_saved_step
+                ):
                     last_saved_step = completed_steps
                     output_dir = f"step_{completed_steps }"
                     if args.output_dir is not None:
@@ -610,7 +711,10 @@ def main():
                     accelerator.save_state(output_dir)
                     logger.info(f"model is saved after step {completed_steps}")
 
-            if completed_steps % args.logging_steps == args.logging_steps - 1 and completed_steps != last_saved_step:
+            if (
+                completed_steps % args.logging_steps == args.logging_steps - 1
+                and completed_steps != last_saved_step
+            ):
                 last_saved_step = completed_steps
                 # TODO change
                 if args.inspect:
@@ -618,17 +722,25 @@ def main():
                     losses = []
                     for _, batch in enumerate(eval_dataloader):
                         with torch.no_grad():
-                            outputs = model(**batch)                          
+                            outputs = model(**batch)
                         loss = outputs.loss
-                        losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))
+                        losses.append(
+                            accelerator.gather(
+                                loss.repeat(args.per_device_eval_batch_size)
+                            )
+                        )
 
                     losses = torch.cat(losses)
                     losses = losses[: len(eval_dataset)]
                     total_loss = torch.mean(losses)
-                    logger.info(f"epoch: {epoch}, step: {completed_steps+1}, train_loss: {running_loss/args.logging_steps}, val_loss: {total_loss}")
+                    logger.info(
+                        f"epoch: {epoch}, step: {completed_steps+1}, train_loss: {running_loss/args.logging_steps}, val_loss: {total_loss}"
+                    )
                     model.train()
                 else:
-                    logger.info(f"epoch: {epoch}, step: {completed_steps+1}, loss: {running_loss/args.logging_steps}")
+                    logger.info(
+                        f"epoch: {epoch}, step: {completed_steps+1}, loss: {running_loss/args.logging_steps}"
+                    )
                 running_loss = 0.0
             if completed_steps >= args.max_train_steps:
                 break
@@ -639,7 +751,9 @@ def main():
                 # Modified for Contrastive Model
                 outputs = model(**batch)
             loss = outputs.loss
-            losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))
+            losses.append(
+                accelerator.gather(loss.repeat(args.per_device_eval_batch_size))
+            )
 
         losses = torch.cat(losses)
         losses = losses[: len(eval_dataset)]
@@ -656,12 +770,15 @@ def main():
             accelerator.wait_for_everyone()
             unwrapped_model = accelerator.unwrap_model(model)
             # Modified
-            accelerator.save(obj=unwrapped_model.hierarchical_model.state_dict(),
-                             f=f"{args.output_dir}/model_{epoch}.pth")
+            accelerator.save(
+                obj=unwrapped_model.hierarchical_model.state_dict(),
+                f=f"{args.output_dir}/model_{epoch}.pth",
+            )
             logger.info(f"model after spoch {epoch} is saved")
             # TODO: change later to save only one time
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(args.output_dir)
+
 
 if __name__ == "__main__":
     main()

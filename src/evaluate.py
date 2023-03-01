@@ -21,40 +21,57 @@ import random
 from datetime import datetime
 from pathlib import Path
 
-import torch
 import datasets
-from datasets import load_from_disk, load_metric
-from torch.utils.data import DataLoader
-
+import torch
 import transformers
 from accelerate import Accelerator, DistributedDataParallelKwargs
+from data_collator import CustomDataCollator
+from datasets import load_from_disk, load_metric
 from huggingface_hub import Repository
+from longformer import get_attention_injected_model
+from model_utils import (
+    copy_proj_layers,
+    pretrained_masked_model_selector,
+    pretrained_model_selector,
+    pretrained_sequence_model_selector,
+)
+from models import HierarchicalClassificationModel
+from torch.utils.data import DataLoader
 from transformers import (
-    AutoTokenizer,
-    set_seed,
     AutoConfig,
     AutoModelForSequenceClassification,
-    DataCollatorWithPadding
+    AutoTokenizer,
+    DataCollatorWithPadding,
+    set_seed,
 )
-
 from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
-
-from utils import custom_tokenize, load_args, path_adder, preprocess_function, MODEL_MAPPING, select_base
-from data_collator import CustomDataCollator
-from models import HierarchicalClassificationModel
-from model_utils import copy_proj_layers, pretrained_masked_model_selector, pretrained_model_selector, pretrained_sequence_model_selector
-from longformer import get_attention_injected_model
+from utils import (
+    MODEL_MAPPING,
+    custom_tokenize,
+    load_args,
+    path_adder,
+    preprocess_function,
+    select_base,
+)
 
 logger = logging.getLogger(__name__)
 
-require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/text-classification/requirements.txt")
+require_version(
+    "datasets>=1.8.0",
+    "To fix: pip install -r examples/pytorch/text-classification/requirements.txt",
+)
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Finetune the hierarchical model on a text classification task")
+    parser = argparse.ArgumentParser(
+        description="Finetune the hierarchical model on a text classification task"
+    )
     parser.add_argument(
-        "--test_file", type=str, default=None, help="A csv or a json file containing the training data."
+        "--test_file",
+        type=str,
+        default=None,
+        help="A csv or a json file containing the training data.",
     )
     parser.add_argument(
         # Modified
@@ -84,7 +101,10 @@ def parse_args():
         help="If passed, will use a slow tokenizer (not backed by the 🤗 Tokenizers library).",
     )
     parser.add_argument(
-        "--overwrite_cache", type=bool, default=False, help="Overwrite the cached training and evaluation sets"
+        "--overwrite_cache",
+        type=bool,
+        default=False,
+        help="Overwrite the cached training and evaluation sets",
     )
     parser.add_argument(
         "--per_device_eval_batch_size",
@@ -92,13 +112,25 @@ def parse_args():
         default=8,
         help="Batch size (per device) for the evaluation dataloader.",
     )
-    parser.add_argument("--output_dir", type=str, default=None, help="Where to store the final model.")
-    parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
-    parser.add_argument("--push_to_hub", action="store_true", help="Whether or not to push the model to the Hub.")
     parser.add_argument(
-        "--hub_model_id", type=str, help="The name of the repository to keep in sync with the local `output_dir`."
+        "--output_dir", type=str, default=None, help="Where to store the final model."
     )
-    parser.add_argument("--hub_token", type=str, help="The token to use to push to the Model Hub.")
+    parser.add_argument(
+        "--seed", type=int, default=None, help="A seed for reproducible training."
+    )
+    parser.add_argument(
+        "--push_to_hub",
+        action="store_true",
+        help="Whether or not to push the model to the Hub.",
+    )
+    parser.add_argument(
+        "--hub_model_id",
+        type=str,
+        help="The name of the repository to keep in sync with the local `output_dir`.",
+    )
+    parser.add_argument(
+        "--hub_token", type=str, help="The token to use to push to the Model Hub."
+    )
     # Modified:
     parser.add_argument(
         "--preprocessing_num_workers",
@@ -112,14 +144,14 @@ def parse_args():
         default=None,
         required=True,
         help="The maximum number of sentences each document can have. Documents are either truncated or"
-             "padded if their length is different.",
+        "padded if their length is different.",
     )
     parser.add_argument(
         "--custom_model",
         type=str,
         help="If a custom model is to be used, the model type has to be specified.",
         default=None,
-        choices=["hierarchical", "sliding_window", "longformer"]
+        choices=["hierarchical", "sliding_window", "longformer"],
     )
     args = parser.parse_args()
 
@@ -128,7 +160,9 @@ def parse_args():
         raise ValueError("Need testing file.")
 
     if args.push_to_hub:
-        assert args.output_dir is not None, "Need an `output_dir` to create a repo when `--push_to_hub` is passed."
+        assert (
+            args.output_dir is not None
+        ), "Need an `output_dir` to create a repo when `--push_to_hub` is passed."
 
     return args
 
@@ -140,8 +174,12 @@ def main():
     # TODO: change the logic
     # Argments from pretraining
     if args.custom_model == "hierarchical":
-        pretrained_args = load_args(os.path.join(args.finetuned_dir, "pretrained_args.json"))
-        args.use_sliding_window_tokenization = getattr(pretrained_args , "use_sliding_window_tokenization", False)
+        pretrained_args = load_args(
+            os.path.join(args.finetuned_dir, "pretrained_args.json")
+        )
+        args.use_sliding_window_tokenization = getattr(
+            pretrained_args, "use_sliding_window_tokenization", False
+        )
     elif args.custom_model == "sliding_window":
         args.use_sliding_window_tokenization = True
     finetuned_args = load_args(os.path.join(args.finetuned_dir, "args.json"))
@@ -154,7 +192,9 @@ def main():
     if accelerator.is_main_process:
         if args.push_to_hub:
             if args.hub_model_id is None:
-                repo_name = get_full_repo_name(Path(args.output_dir).name, token=args.hub_token)
+                repo_name = get_full_repo_name(
+                    Path(args.output_dir).name, token=args.hub_token
+                )
             else:
                 repo_name = args.hub_model_id
             repo = Repository(args.output_dir, clone_from=repo_name)
@@ -162,7 +202,9 @@ def main():
             # Modified: output_dir is concatanated with datetime and command line arguments are also saved
             # TODO: refactor
             if args.custom_model == "hierarchical":
-                inter_path = path_adder(pretrained_args, finetuning=True, custom_model=args.custom_model)
+                inter_path = path_adder(
+                    pretrained_args, finetuning=True, custom_model=args.custom_model
+                )
             else:
                 inter_path = path_adder(finetuned_args, finetuning=True)
             inter_path += datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
@@ -177,14 +219,16 @@ def main():
         # Modified
         handlers=[
             logging.FileHandler(os.path.join(args.output_dir, "loginfo.log")),
-            logging.StreamHandler()
-        ]
+            logging.StreamHandler(),
+        ],
     )
     logger.info(accelerator.state)
 
     # Setup logging, we only want one process per machine to log things on the screen.
     # accelerator.is_local_main_process is only True for one process per machine.
-    logger.setLevel(logging.INFO if accelerator.is_local_main_process else logging.ERROR)
+    logger.setLevel(
+        logging.INFO if accelerator.is_local_main_process else logging.ERROR
+    )
     if accelerator.is_local_main_process:
         datasets.utils.logging.set_verbosity_warning()
         transformers.utils.logging.set_verbosity_info()
@@ -207,29 +251,28 @@ def main():
 
     if args.custom_model == "longformer":
         tokenizer = AutoTokenizer.from_pretrained(
-        args.finetuned_dir,
-        max_length=args.max_seq_length,
-        padding="max_length",
-        truncation=True,
+            args.finetuned_dir,
+            max_length=args.max_seq_length,
+            padding="max_length",
+            truncation=True,
         )
     else:
-        tokenizer = AutoTokenizer.from_pretrained(args.finetuned_dir,
-                                                  use_fast=True)
+        tokenizer = AutoTokenizer.from_pretrained(args.finetuned_dir, use_fast=True)
 
     if args.custom_model in ("hierarchical", "sliding_window"):
-        model = HierarchicalClassificationModel(c_args=finetuned_args,
-                                                args=None if args.custom_model == "sliding_window" else pretrained_args,
-                                                tokenizer=tokenizer,
-                                                num_labels=num_labels)
+        model = HierarchicalClassificationModel(
+            c_args=finetuned_args,
+            args=None if args.custom_model == "sliding_window" else pretrained_args,
+            tokenizer=tokenizer,
+            num_labels=num_labels,
+        )
         model.load_state_dict(torch.load(os.path.join(args.finetuned_dir, "model.pth")))
     elif args.custom_model == "longformer":
         psm = pretrained_sequence_model_selector(select_base(args.finetuned_dir))
         model = get_attention_injected_model(psm)
         model = model.from_pretrained(
-            args.finetuned_dir, 
-            max_length=args.max_seq_length,
-            num_labels=num_labels
-        )   
+            args.finetuned_dir, max_length=args.max_seq_length, num_labels=num_labels
+        )
     else:
         config = AutoConfig.from_pretrained(args.finetuned_dir, num_labels=num_labels)
         model = AutoModelForSequenceClassification.from_pretrained(
@@ -244,16 +287,23 @@ def main():
             ARTICLE_NUMBERS = 1
             test_dataset = test_dataset.map(
                 custom_tokenize,
-                fn_kwargs={"tokenizer": tokenizer, "args": args, "article_numbers": ARTICLE_NUMBERS},
+                fn_kwargs={
+                    "tokenizer": tokenizer,
+                    "args": args,
+                    "article_numbers": ARTICLE_NUMBERS,
+                },
                 num_proc=args.preprocessing_num_workers,
                 load_from_cache_file=False,
                 desc="Running tokenizer on dataset",
-            )     
+            )
     else:
         with accelerator.main_process_first():
             test_dataset = test_dataset.map(
                 preprocess_function,
-                fn_kwargs={"tokenizer": tokenizer, "max_seq_length": args.max_seq_length},
+                fn_kwargs={
+                    "tokenizer": tokenizer,
+                    "max_seq_length": args.max_seq_length,
+                },
                 batched=True,
                 num_proc=args.preprocessing_num_workers,
                 remove_columns=test_dataset.column_names,
@@ -269,22 +319,32 @@ def main():
 
     if args.custom_model in ("hierarchical", "sliding_window"):
         ARTICLE_NUMBERS = 1
-        data_collator = CustomDataCollator(tokenizer=tokenizer,
-                                           max_sentence_len=pretrained_args.max_seq_length if args.max_seq_length is None else args.max_seq_length,
-                                           max_document_len=pretrained_args.max_document_length if args.max_document_length is None else args.max_document_length,
-                                           article_numbers=ARTICLE_NUMBERS,
-                                           consider_dcls=True if args.custom_model == "hierarchical" else False)
+        data_collator = CustomDataCollator(
+            tokenizer=tokenizer,
+            max_sentence_len=pretrained_args.max_seq_length
+            if args.max_seq_length is None
+            else args.max_seq_length,
+            max_document_len=pretrained_args.max_document_length
+            if args.max_document_length is None
+            else args.max_document_length,
+            article_numbers=ARTICLE_NUMBERS,
+            consider_dcls=True if args.custom_model == "hierarchical" else False,
+        )
     elif args.custom_model == "longformer":
-        data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=512)    
+        data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=512)
     else:
-        data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=(8 if accelerator.use_fp16 else None))
+        data_collator = DataCollatorWithPadding(
+            tokenizer, pad_to_multiple_of=(8 if accelerator.use_fp16 else None)
+        )
 
-    test_dataloader = DataLoader(test_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+    test_dataloader = DataLoader(
+        test_dataset,
+        collate_fn=data_collator,
+        batch_size=args.per_device_eval_batch_size,
+    )
 
     # Prepare everything with our `accelerator`.
-    model, test_dataloader = accelerator.prepare(
-        model, test_dataloader
-    )
+    model, test_dataloader = accelerator.prepare(model, test_dataloader)
 
     # Modified: only accuracy.
     # Get the metric function

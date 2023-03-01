@@ -17,13 +17,13 @@ class CustomDataCollator:
     return_tensors: str = "pt"
     consider_dcls: bool = True
     target_device: str = None
-    dual_encoder:bool = False
+    dual_encoder: bool = False
 
     def __call__(self, features: list) -> dict:
         batch = {}
         start = 1
         if self.dual_encoder:
-            temp_list = [{"input_ids": feature["article_1"], "attention_mask": feature["mask_1"] } for feature in features]
+            temp_list = [{"input_ids": feature["article_1"], "attention_mask": feature["mask_1"]} for feature in features]
             temp_batch = self.tokenizer.pad(
                                 temp_list,
                                 pad_to_multiple_of=8,
@@ -89,7 +89,7 @@ class CustomDataCollator:
 
         return batch
 
-    def pad_sentence(self, sen_len: int, feature: dict, article_number: int) -> tuple():
+    def pad_sentence(self, sen_len: int, feature: dict, article_number: int) -> tuple:
         """Returns padded sentences so that within the batch, each sentence has the same number of words.
 
         Args:

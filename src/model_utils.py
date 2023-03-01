@@ -4,21 +4,21 @@ from dataclasses import dataclass
 
 import torch
 from torch import Tensor
-from transformers.file_utils import ModelOutput
 from transformers import (
-    XLMRobertaForMaskedLM,
-    BertForMaskedLM, 
-    RobertaForMaskedLM, 
-    PreTrainedModel, 
-    BertModel, 
-    RobertaModel, 
-    XLMRobertaModel, 
-    AutoTokenizer, 
     AutoModelForMaskedLM,
-    XLMRobertaForSequenceClassification,
+    AutoTokenizer,
+    BertForMaskedLM,
+    BertForSequenceClassification,
+    BertModel,
+    PreTrainedModel,
+    RobertaForMaskedLM,
     RobertaForSequenceClassification,
-    BertForSequenceClassification
+    RobertaModel,
+    XLMRobertaForMaskedLM,
+    XLMRobertaForSequenceClassification,
+    XLMRobertaModel,
 )
+from transformers.file_utils import ModelOutput
 from transformers.models.longformer.modeling_longformer import LongformerSelfAttention
 
 
@@ -64,7 +64,9 @@ def get_extended_attention_mask(attention_mask: Tensor) -> Tensor:
     # We can provide a self-attention mask of dimensions [batch_size, to_seq_length]
     # ourselves in which case we just need to make it broadcastable to all heads.
     extended_attention_mask = attention_mask[:, None, None, :]
-    extended_attention_mask = extended_attention_mask.to(dtype=extended_attention_mask.dtype)  # fp16 compatibility
+    extended_attention_mask = extended_attention_mask.to(
+        dtype=extended_attention_mask.dtype
+    )  # fp16 compatibility
     extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
     return extended_attention_mask
 
@@ -72,7 +74,9 @@ def get_extended_attention_mask(attention_mask: Tensor) -> Tensor:
 def get_mean(upper_output: Tensor, document_mask: Tensor) -> Tensor:
     """For freezing base of the auto_models."""
     # document_mask has to be expanded to the shape of upper_output
-    input_mask_expanded = document_mask.unsqueeze(-1).expand(upper_output.size()).float()
+    input_mask_expanded = (
+        document_mask.unsqueeze(-1).expand(upper_output.size()).float()
+    )
 
     # Rather than taking simply mean, we have to consider the padded documents.
     # Therefore, effective length of each document will also change accordingly.
@@ -122,7 +126,7 @@ class ContrastiveModelRepresentationOutput(ModelOutput):
     output_2: torch.Tensor = None
 
 
-def pretrained_masked_model_selector(seed_model: str) -> PreTrainedModel: 
+def pretrained_masked_model_selector(seed_model: str) -> PreTrainedModel:
     if seed_model == "xlm-roberta-base":
         PRETRAINED_MODEL = XLMRobertaForMaskedLM
     elif seed_model == "roberta-base":
@@ -130,12 +134,11 @@ def pretrained_masked_model_selector(seed_model: str) -> PreTrainedModel:
     elif seed_model in ("sentence-transformers/LaBSE", "bert-base-multilingual-cased"):
         PRETRAINED_MODEL = BertForMaskedLM
     else:
-        raise NotImplementedError(
-        "Other models are not supported")
+        raise NotImplementedError("Other models are not supported")
     return PRETRAINED_MODEL
 
 
-def pretrained_model_selector(seed_model: str) -> PreTrainedModel: 
+def pretrained_model_selector(seed_model: str) -> PreTrainedModel:
     if seed_model == "xlm-roberta-base":
         PRETRAINED_MODEL = XLMRobertaModel
     elif seed_model == "roberta-base":
@@ -143,12 +146,11 @@ def pretrained_model_selector(seed_model: str) -> PreTrainedModel:
     elif seed_model in ("sentence-transformers/LaBSE", "bert-base-multilingual-cased"):
         PRETRAINED_MODEL = BertModel
     else:
-        raise NotImplementedError(
-        "Other models are not supported")
+        raise NotImplementedError("Other models are not supported")
     return PRETRAINED_MODEL
 
 
-def pretrained_sequence_model_selector(seed_model: str) -> PreTrainedModel: 
+def pretrained_sequence_model_selector(seed_model: str) -> PreTrainedModel:
     if seed_model == "xlm-roberta-base":
         PRETRAINED_MODEL = XLMRobertaForSequenceClassification
     elif seed_model == "roberta-base":
@@ -156,47 +158,59 @@ def pretrained_sequence_model_selector(seed_model: str) -> PreTrainedModel:
     elif seed_model in ("sentence-transformers/LaBSE", "bert-base-multilingual-cased"):
         PRETRAINED_MODEL = BertForSequenceClassification
     else:
-        raise NotImplementedError(
-        "Other models are not supported")
+        raise NotImplementedError("Other models are not supported")
     return PRETRAINED_MODEL
 
 
 def create_long_model(seed_model, save_model_to, attention_window, max_pos):
     """Modified: all roberta -> base_model."""
 
-    # MODIFIED: 
+    # MODIFIED:
     model = AutoModelForMaskedLM.from_pretrained(seed_model)
-    tokenizer = AutoTokenizer.from_pretrained(seed_model, model_max_length=max_pos, use_fast=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        seed_model, model_max_length=max_pos, use_fast=True
+    )
     config = model.config
 
     # extend position embeddings
     tokenizer.model_max_length = max_pos
-    tokenizer.init_kwargs['model_max_length'] = max_pos
-    current_max_pos, embed_size = model.base_model.embeddings.position_embeddings.weight.shape
+    tokenizer.init_kwargs["model_max_length"] = max_pos
+    (
+        current_max_pos,
+        embed_size,
+    ) = model.base_model.embeddings.position_embeddings.weight.shape
     if seed_model in ("xlm-roberta-base", "roberta-base"):
         max_pos += 2  # NOTE: RoBERTa has positions 0,1 reserved, so embedding size is max position + 2
         assert max_pos > current_max_pos
     config.max_position_embeddings = max_pos
     # allocate a larger position embedding matrix
-    new_pos_embed = model.base_model.embeddings.position_embeddings.weight.new_empty(max_pos, embed_size)
+    new_pos_embed = model.base_model.embeddings.position_embeddings.weight.new_empty(
+        max_pos, embed_size
+    )
     # copy position embeddings over and over to initialize the new position embeddings
-    
-    # MODIFIED: 
-    if seed_model in ("xlm-roberta-base", "roberta-base" ):
+
+    # MODIFIED:
+    if seed_model in ("xlm-roberta-base", "roberta-base"):
         k = 2
     else:
         k = 0
     step = current_max_pos - k
     while k < max_pos - 1:
         if seed_model in ("xlm-roberta-base", "roberta-base"):
-            new_pos_embed[k:(k + step)] = model.base_model.embeddings.position_embeddings.weight[k:]
+            new_pos_embed[
+                k : (k + step)
+            ] = model.base_model.embeddings.position_embeddings.weight[k:]
         else:
-            new_pos_embed[k:(k + step)] = model.base_model.embeddings.position_embeddings.weight[:]
+            new_pos_embed[
+                k : (k + step)
+            ] = model.base_model.embeddings.position_embeddings.weight[:]
         # END OF MODIFICATION
         k += step
     model.base_model.embeddings.position_embeddings.weight.data = new_pos_embed
-    model.base_model.embeddings.position_ids.data = torch.tensor([i for i in range(max_pos)]).reshape(1, max_pos)  
-    
+    model.base_model.embeddings.position_ids.data = torch.tensor(
+        [i for i in range(max_pos)]
+    ).reshape(1, max_pos)
+
     # replace the `modeling_bert.BertSelfAttention` object with `LongformerSelfAttention`
     config.attention_window = [attention_window] * config.num_hidden_layers
     for i, layer in enumerate(model.base_model.encoder.layer):
@@ -211,7 +225,7 @@ def create_long_model(seed_model, save_model_to, attention_window, max_pos):
 
         layer.attention.self = longformer_self_attn
 
-    print(f'saving model to {save_model_to}')
+    print(f"saving model to {save_model_to}")
     model.save_pretrained(save_model_to)
     tokenizer.save_pretrained(save_model_to)
     return model, tokenizer

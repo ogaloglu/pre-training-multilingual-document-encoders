@@ -22,46 +22,69 @@ import random
 from datetime import datetime
 from pathlib import Path
 
-import datasets
-from datasets import load_from_disk, load_metric
-from tokenizers import Tokenizer
-from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
+import datasets
 import transformers
 from accelerate import Accelerator, DistributedDataParallelKwargs
+from data_collator import CustomDataCollator
+from datasets import load_from_disk, load_metric
 from huggingface_hub import Repository
+from longformer import get_attention_injected_model
+from model_utils import (
+    copy_proj_layers,
+    freeze_base,
+    pretrained_masked_model_selector,
+    pretrained_model_selector,
+    pretrained_sequence_model_selector,
+)
+from models import HierarchicalClassificationModel
+from tokenizers import Tokenizer
+from torch.utils.data import DataLoader
 from transformers import (
     AdamW,
+    AutoConfig,
+    AutoModelForSequenceClassification,
     AutoTokenizer,
+    DataCollatorWithPadding,
     get_scheduler,
     set_seed,
-    DataCollatorWithPadding,
-    AutoModelForSequenceClassification,
-    AutoConfig
 )
 from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
-
-from utils import custom_tokenize, load_args, save_args, path_adder, preprocess_function, MODEL_MAPPING, select_base
-from model_utils import freeze_base, copy_proj_layers, pretrained_masked_model_selector, pretrained_model_selector, pretrained_sequence_model_selector
-from data_collator import CustomDataCollator
-from models import HierarchicalClassificationModel
-from longformer import get_attention_injected_model
-
+from utils import (
+    MODEL_MAPPING,
+    custom_tokenize,
+    load_args,
+    path_adder,
+    preprocess_function,
+    save_args,
+    select_base,
+)
 
 logger = logging.getLogger(__name__)
 
-require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/text-classification/requirements.txt")
+require_version(
+    "datasets>=1.8.0",
+    "To fix: pip install -r examples/pytorch/text-classification/requirements.txt",
+)
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Finetune the hierarchical model on a text classification task")
-    parser.add_argument(
-        "--train_file", type=str, default=None, help="A csv or a json file containing the training data."
+    parser = argparse.ArgumentParser(
+        description="Finetune the hierarchical model on a text classification task"
     )
     parser.add_argument(
-        "--validation_file", type=str, default=None, help="A csv or a json file containing the validation data."
+        "--train_file",
+        type=str,
+        default=None,
+        help="A csv or a json file containing the training data.",
+    )
+    parser.add_argument(
+        "--validation_file",
+        type=str,
+        default=None,
+        help="A csv or a json file containing the validation data.",
     )
     parser.add_argument(
         "--validation_split_percentage",
@@ -96,7 +119,10 @@ def parse_args():
         help="If passed, will use a slow tokenizer (not backed by the 🤗 Tokenizers library).",
     )
     parser.add_argument(
-        "--overwrite_cache", type=bool, default=False, help="Overwrite the cached training and evaluation sets"
+        "--overwrite_cache",
+        type=bool,
+        default=False,
+        help="Overwrite the cached training and evaluation sets",
     )
     parser.add_argument(
         "--per_device_train_batch_size",
@@ -116,8 +142,15 @@ def parse_args():
         default=5e-5,
         help="Initial learning rate (after the potential warmup period) to use.",
     )
-    parser.add_argument("--weight_decay", type=float, default=0.0, help="Weight decay to use.")
-    parser.add_argument("--num_train_epochs", type=int, default=3, help="Total number of training epochs to perform.")
+    parser.add_argument(
+        "--weight_decay", type=float, default=0.0, help="Weight decay to use."
+    )
+    parser.add_argument(
+        "--num_train_epochs",
+        type=int,
+        default=3,
+        help="Total number of training epochs to perform.",
+    )
     parser.add_argument(
         "--max_train_steps",
         type=int,
@@ -136,18 +169,40 @@ def parse_args():
         type=str,
         default="linear",
         help="The scheduler type to use.",
-        choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"],
+        choices=[
+            "linear",
+            "cosine",
+            "cosine_with_restarts",
+            "polynomial",
+            "constant",
+            "constant_with_warmup",
+        ],
     )
     parser.add_argument(
-        "--num_warmup_steps", type=int, default=0, help="Number of steps for the warmup in the lr scheduler."
+        "--num_warmup_steps",
+        type=int,
+        default=0,
+        help="Number of steps for the warmup in the lr scheduler.",
     )
-    parser.add_argument("--output_dir", type=str, default=None, help="Where to store the final model.")
-    parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
-    parser.add_argument("--push_to_hub", action="store_true", help="Whether or not to push the model to the Hub.")
     parser.add_argument(
-        "--hub_model_id", type=str, help="The name of the repository to keep in sync with the local `output_dir`."
+        "--output_dir", type=str, default=None, help="Where to store the final model."
     )
-    parser.add_argument("--hub_token", type=str, help="The token to use to push to the Model Hub.")
+    parser.add_argument(
+        "--seed", type=int, default=None, help="A seed for reproducible training."
+    )
+    parser.add_argument(
+        "--push_to_hub",
+        action="store_true",
+        help="Whether or not to push the model to the Hub.",
+    )
+    parser.add_argument(
+        "--hub_model_id",
+        type=str,
+        help="The name of the repository to keep in sync with the local `output_dir`.",
+    )
+    parser.add_argument(
+        "--hub_token", type=str, help="The token to use to push to the Model Hub."
+    )
     # Modified:
     parser.add_argument(
         "--preprocessing_num_workers",
@@ -161,22 +216,20 @@ def parse_args():
         default=None,
         required=True,
         help="The maximum number of sentences each document can have. Documents are either truncated or"
-             "padded if their length is different.",
+        "padded if their length is different.",
     )
     parser.add_argument(
         "--frozen",
         action="store_true",
-        help="Either the lower level encoder is frozen or not."
+        help="Either the lower level encoder is frozen or not.",
     )
     parser.add_argument(
-        "--unfreeze",
-        action="store_true",
-        help="If True, unfreezes the whole model."
+        "--unfreeze", action="store_true", help="If True, unfreezes the whole model."
     )
     parser.add_argument(
         "--freeze",
         action="store_true",
-        help="If True, freeze the whole model other than the classifier."
+        help="If True, freeze the whole model other than the classifier.",
     )
     parser.add_argument(
         "--dropout",
@@ -207,12 +260,12 @@ def parse_args():
         type=str,
         help="If a custom model is to be used, the model type has to be specified.",
         default=None,
-        choices=["hierarchical", "sliding_window", "longformer"]
+        choices=["hierarchical", "sliding_window", "longformer"],
     )
     parser.add_argument(
         "--custom_from_scratch",
         action="store_true",
-        help="If True, then the custom model is not initilazed from the previously pretrained model."
+        help="If True, then the custom model is not initilazed from the previously pretrained model.",
     )
     parser.add_argument(
         "--stride",
@@ -245,7 +298,9 @@ def parse_args():
         raise ValueError("Need training file.")
 
     if args.push_to_hub:
-        assert args.output_dir is not None, "Need an `output_dir` to create a repo when `--push_to_hub` is passed."
+        assert (
+            args.output_dir is not None
+        ), "Need an `output_dir` to create a repo when `--push_to_hub` is passed."
 
     return args
 
@@ -257,7 +312,9 @@ def main():
     # Argments from pretraining
     if args.custom_model == "hierarchical":
         pretrained_args = load_args(os.path.join(args.pretrained_dir, "args.json"))
-        args.use_sliding_window_tokenization = getattr(pretrained_args , "use_sliding_window_tokenization", False)
+        args.use_sliding_window_tokenization = getattr(
+            pretrained_args, "use_sliding_window_tokenization", False
+        )
     elif args.custom_model == "sliding_window":
         args.use_sliding_window_tokenization = True
 
@@ -269,7 +326,9 @@ def main():
     if accelerator.is_main_process:
         if args.push_to_hub:
             if args.hub_model_id is None:
-                repo_name = get_full_repo_name(Path(args.output_dir).name, token=args.hub_token)
+                repo_name = get_full_repo_name(
+                    Path(args.output_dir).name, token=args.hub_token
+                )
             else:
                 repo_name = args.hub_model_id
             repo = Repository(args.output_dir, clone_from=repo_name)
@@ -277,9 +336,16 @@ def main():
             # Modified: output_dir is concatanated with datetime and command line arguments are also saved
             # TODO: refactor
             if args.custom_model == "hierarchical":
-                inter_path = path_adder(pretrained_args, finetuning=True, custom_model=args.custom_model, c_args=args)
+                inter_path = path_adder(
+                    pretrained_args,
+                    finetuning=True,
+                    custom_model=args.custom_model,
+                    c_args=args,
+                )
             elif args.custom_model == "longformer":
-                inter_path = path_adder(args, finetuning=True, custom_model=args.custom_model, c_args=args)
+                inter_path = path_adder(
+                    args, finetuning=True, custom_model=args.custom_model, c_args=args
+                )
             else:
                 inter_path = path_adder(args, finetuning=True)
             inter_path += datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
@@ -297,14 +363,16 @@ def main():
         # Modified
         handlers=[
             logging.FileHandler(os.path.join(args.output_dir, "loginfo.log")),
-            logging.StreamHandler()
-        ]
+            logging.StreamHandler(),
+        ],
     )
     logger.info(accelerator.state)
 
     # Setup logging, we only want one process per machine to log things on the screen.
     # accelerator.is_local_main_process is only True for one process per machine.
-    logger.setLevel(logging.INFO if accelerator.is_local_main_process else logging.ERROR)
+    logger.setLevel(
+        logging.INFO if accelerator.is_local_main_process else logging.ERROR
+    )
     if accelerator.is_local_main_process:
         datasets.utils.logging.set_verbosity_warning()
         transformers.utils.logging.set_verbosity_info()
@@ -332,27 +400,28 @@ def main():
     # TODO: additional condition for model type
     if args.custom_model == "longformer":
         tokenizer = AutoTokenizer.from_pretrained(
-        args.pretrained_dir,
-        max_length=args.max_seq_length,
-        padding="max_length",
-        truncation=True,
+            args.pretrained_dir,
+            max_length=args.max_seq_length,
+            padding="max_length",
+            truncation=True,
         )
     else:
-        tokenizer = AutoTokenizer.from_pretrained(args.pretrained_dir,
-                                                  use_fast=True)
+        tokenizer = AutoTokenizer.from_pretrained(args.pretrained_dir, use_fast=True)
 
     if args.custom_model in ("hierarchical", "sliding_window"):
-        model = HierarchicalClassificationModel(c_args=args,
-                                                args=None if args.custom_model == "sliding_window" else pretrained_args,
-                                                tokenizer=tokenizer,
-                                                num_labels=num_labels)
+        model = HierarchicalClassificationModel(
+            c_args=args,
+            args=None if args.custom_model == "sliding_window" else pretrained_args,
+            tokenizer=tokenizer,
+            num_labels=num_labels,
+        )
     elif args.custom_model == "longformer":
         psm = pretrained_sequence_model_selector(select_base(args.pretrained_dir))
         model = get_attention_injected_model(psm)
         model = model.from_pretrained(
             args.pretrained_dir,  # /checkpoint-14500
             max_length=args.max_seq_length,
-            num_labels=num_labels
+            num_labels=num_labels,
         )
     else:
         config = AutoConfig.from_pretrained(args.pretrained_dir, num_labels=num_labels)
@@ -370,7 +439,11 @@ def main():
             raw_datasets = raw_datasets.rename_column("text", "article_1")
             processed_datasets = raw_datasets.map(
                 custom_tokenize,
-                fn_kwargs={"tokenizer": tokenizer, "args": args, "article_numbers": ARTICLE_NUMBERS},
+                fn_kwargs={
+                    "tokenizer": tokenizer,
+                    "args": args,
+                    "article_numbers": ARTICLE_NUMBERS,
+                },
                 num_proc=args.preprocessing_num_workers,
                 load_from_cache_file=False,
                 desc="Running tokenizer on dataset",
@@ -379,7 +452,10 @@ def main():
         with accelerator.main_process_first():
             processed_datasets = raw_datasets.map(
                 preprocess_function,
-                fn_kwargs={"tokenizer": tokenizer, "max_seq_length": args.max_seq_length},
+                fn_kwargs={
+                    "tokenizer": tokenizer,
+                    "max_seq_length": args.max_seq_length,
+                },
                 batched=True,
                 num_proc=args.preprocessing_num_workers,
                 remove_columns=raw_datasets["train"].column_names,
@@ -398,31 +474,54 @@ def main():
     if args.custom_model in ("hierarchical", "sliding_window"):
         # Modified
         ARTICLE_NUMBERS = 1
-        data_collator = CustomDataCollator(tokenizer=tokenizer,
-                                           max_sentence_len=pretrained_args.max_seq_length if args.max_seq_length is None else args.max_seq_length,
-                                           max_document_len=pretrained_args.max_document_length if args.max_document_length is None else args.max_document_length,
-                                           article_numbers=ARTICLE_NUMBERS,
-                                           consider_dcls=True if args.custom_model == "hierarchical" else False)
+        data_collator = CustomDataCollator(
+            tokenizer=tokenizer,
+            max_sentence_len=pretrained_args.max_seq_length
+            if args.max_seq_length is None
+            else args.max_seq_length,
+            max_document_len=pretrained_args.max_document_length
+            if args.max_document_length is None
+            else args.max_document_length,
+            article_numbers=ARTICLE_NUMBERS,
+            consider_dcls=True if args.custom_model == "hierarchical" else False,
+        )
     elif args.custom_model == "longformer":
         data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=512)
     else:
-        data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=(8 if accelerator.use_fp16 else None))
+        data_collator = DataCollatorWithPadding(
+            tokenizer, pad_to_multiple_of=(8 if accelerator.use_fp16 else None)
+        )
 
     train_dataloader = DataLoader(
-        train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
+        train_dataset,
+        shuffle=True,
+        collate_fn=data_collator,
+        batch_size=args.per_device_train_batch_size,
     )
-    eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+    eval_dataloader = DataLoader(
+        eval_dataset,
+        collate_fn=data_collator,
+        batch_size=args.per_device_eval_batch_size,
+    )
 
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
     no_decay = ["bias", "LayerNorm.weight"]
     optimizer_grouped_parameters = [
         {
-            "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+            "params": [
+                p
+                for n, p in model.named_parameters()
+                if not any(nd in n for nd in no_decay)
+            ],
             "weight_decay": args.weight_decay,
         },
         {
-            "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+            "params": [
+                p
+                for n, p in model.named_parameters()
+                if any(nd in n for nd in no_decay)
+            ],
             "weight_decay": 0.0,
         },
     ]
@@ -437,11 +536,15 @@ def main():
     # shorter in multiprocess)
 
     # Scheduler and math around the number of training steps.
-    num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
+    num_update_steps_per_epoch = math.ceil(
+        len(train_dataloader) / args.gradient_accumulation_steps
+    )
     if args.max_train_steps is None:
         args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
     else:
-        args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
+        args.num_train_epochs = math.ceil(
+            args.max_train_steps / num_update_steps_per_epoch
+        )
 
     lr_scheduler = get_scheduler(
         name=args.lr_scheduler_type,
@@ -452,17 +555,27 @@ def main():
 
     metric = load_metric("accuracy")
     # Train!
-    total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
+    total_batch_size = (
+        args.per_device_train_batch_size
+        * accelerator.num_processes
+        * args.gradient_accumulation_steps
+    )
 
     logger.info("***** Running training *****")
     logger.info(f"  Num examples = {len(train_dataset)}")
     logger.info(f"  Num Epochs = {args.num_train_epochs}")
-    logger.info(f"  Instantaneous batch size per device = {args.per_device_train_batch_size}")
-    logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
+    logger.info(
+        f"  Instantaneous batch size per device = {args.per_device_train_batch_size}"
+    )
+    logger.info(
+        f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}"
+    )
     logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
     # Only show the progress bar once on each machine.
-    progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
+    progress_bar = tqdm(
+        range(args.max_train_steps), disable=not accelerator.is_local_main_process
+    )
     completed_steps = 0
 
     # Modified for checkpoint saving:
@@ -479,13 +592,16 @@ def main():
             loss = outputs.loss
             loss = loss / args.gradient_accumulation_steps
             accelerator.backward(loss)
-            if step % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
+            if (
+                step % args.gradient_accumulation_steps == 0
+                or step == len(train_dataloader) - 1
+            ):
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
                 progress_bar.update(1)
                 completed_steps += 1
-            # TODO: change
+                # TODO: change
                 # running_loss += loss.item()
                 running_loss += loss.item() * batch["labels"].shape[0]
             # if step % args.logging_steps == args.logging_steps - 1:
@@ -514,7 +630,7 @@ def main():
             f"epoch {epoch}| accuracy: {eval_metric}, train loss: {train_loss:.4f}"
             f", validation loss: {validation_loss:.4f}"
         )
-        
+
         # TODO: save checkpoints
         if validation_loss < best_score:
             patience = 0
@@ -524,17 +640,22 @@ def main():
             # Modified
             # TODO: change for other models
             if args.custom_model in ("hierarchical", "sliding_window"):
-                accelerator.save(obj=unwrapped_model.state_dict(),
-                                 f=args.output_dir + "/model.pth")
+                accelerator.save(
+                    obj=unwrapped_model.state_dict(), f=args.output_dir + "/model.pth"
+                )
             else:
-                unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
+                unwrapped_model.save_pretrained(
+                    args.output_dir, save_function=accelerator.save
+                )
             logger.info(f"model after epoch {epoch} is saved")
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(args.output_dir)
         else:
             patience += 1
             if patience == args.max_patience:
-                logger.info(f"Traning stopped after the epoch {epoch}, due to patience parameter.")
+                logger.info(
+                    f"Traning stopped after the epoch {epoch}, due to patience parameter."
+                )
                 break
 
         # # TODO: save checkpoints
