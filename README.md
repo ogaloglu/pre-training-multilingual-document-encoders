@@ -116,7 +116,7 @@ bash run_finetune.sh
 * **Cross-lingual Evaluation Forum (CLEF) 2003**
     * Bi-encoder: 
     ```bash
-    bash retrieval_finetuning/run_dual_encoder_finetuning.sh
+    bash src/retrieval_finetuning/run_dual_encoder_finetuning.sh
     ```
     *Key parameters*:
     ```bash
@@ -130,7 +130,7 @@ bash run_finetune.sh
 
     * Cross-encoder:
     ```bash
-    bash retrieval_finetuning/run_adapter_retrieval_no_trainer.sh
+    bash src/retrieval_finetuning/run_adapter_retrieval_no_trainer.sh
     ```
     *Key parameters*:
     ```bash
