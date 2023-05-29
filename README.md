@@ -1,18 +1,46 @@
-# Pre-training Multilingual Document Encoders
+# A General-Purpose Multilingual Document Encoder
 
-This project is the codebase for the master thesis titled "Pre-training Multilingual Document Encoders".
+This project is the codebase for the paper titled "A General-Purpose Multilingual Document Encoder".
+
+Preprint: https://arxiv.org/abs/2305.07016
 
 ## Abstract
-Having built on latest advances in Natural Language Processing (NLP), the models such as BERT, GPT-2 and GPT-3 gained great success for various tasks. However, many of the published models are trained solely with English language data. Moreover, there is not enough amount of data in every language that Transformer-based models require during pre-training. This increases the significance of the multilingual models and cross-lingual transfer. There has been previous work on multilingual models including mBERT, XLM, XLM-R, and specialized ones that are used for sentence-level tasks such as mUSE, LASER, LaBSE and DistilmBERT. However, 
-there hasn't been a principled method yet to pre-train a multilingual model which is specialized for document-level tasks such as document classification or document retrieval.
-
-In this thesis, a new model called Multilingual Hierarchical Model (MHM) is proposed which has a hierarchical architecture and is contrastively pre-trained by a novel method.
-In order to carry out the contrastive pre-training, first, the X-C-WIKI dataset (Cross-lingual Wikipedia Dataset for Contrastive Learning) is created by using the Wikipedia corpora of different languages and the metadata information from Wikipedia. This way, negative and positive examples are found for each available article, which is needed for the contrastive objective.
-Using the respective dataset, different versions of MHM are pre-trained. MHM
-consist of two encoders, namely the lower encoder and upper encoder. The lower encoder, which is based on a previously published multilingual model (e.g., LaBSE, XLM-R), produces the sentence representations which are then utilized by the upper encoder to generate the document representation.
-Furthermore, multilingual Longformers are pre-trained on comparable multilingual data as the Longformer model was previously reported to work well for long documents.
-Our experiments show that the proposed model is able to capture cross-lingual document representations that can be transferred to other languages for cross-lingual tasks. Additionally, the multilingual Longformer achieved significant gains in the document classification task over the baseline models and deserves further investigation. 
-
+Massively multilingual pretrained transformers
+(MMTs) have tremendously pushed the state of
+the art on multilingual NLP and cross-lingual
+transfer of NLP models in particular. While a
+large body of work leveraged MMTs to mine
+parallel data and induce bilingual document
+embeddings, much less effort has been devoted
+to training general-purpose (massively) multi-
+lingual document encoder that can be used for
+both supervised and unsupervised document-
+level tasks. In this work, we pretrain a mas-
+sively multilingual document encoder as a hier-
+archical transformer model (HMDE) in which
+a shallow document transformer contextualizes
+sentence representations produced by a state-
+of-the-art pretrained multilingual sentence en-
+coder. We leverage Wikipedia as a readily
+available source of comparable documents for
+creating training data, and train HMDE by
+means of a cross-lingual contrastive objective,
+further exploiting the category hierarchy of
+Wikipedia for creation of difficult negatives.
+We evaluate the effectiveness of HMDE in two
+arguably most common and prominent cross-
+lingual document-level tasks: (1) cross-lingual
+transfer for topical document classification and
+(2) cross-lingual document retrieval. HMDE
+is significantly more effective than (i) aggre-
+gations of segment-based representations and
+(ii) multilingual Longformer. Crucially, owing
+to its massively multilingual lower transformer,
+HMDE successfully generalizes to languages
+unseen in document-level pretraining. We pub-
+licly release our code and models
+## Model Overview
+![hmde.png](https://user-images.githubusercontent.com/33498883/241818654-ee3289db-17d9-4476-a4d7-928f001870ed.png)
     
 
 ## Installation Instructions
@@ -22,7 +50,7 @@ git clone https://github.com/ogaloglu/pre-training-multilingual-document-encoder
 cd pre-training-multilingual-document-encoders
 conda create --name mhm
 conda activate mhm
-pip install -r requirements.txt
+pip install .
 ```
 Note: requirements.txt will be added
 
@@ -56,7 +84,7 @@ models
 * **Multilingual Hierarchical Model (MHM)** \
 To pre-train MHM, the following script is used:
 ```bash
-bash run_train.sh
+bash scripts/run_train.sh
 ```
 *Key parameters*:
 ```bash
@@ -86,7 +114,7 @@ bash run_train.sh
 * **Multilingual Longformer** \
 To train multilungual Longfromer: 
 ```bash
-python run_longformer.py
+python src/run_longformer.py
 ```
 *Key parameters*:
 ```bash
@@ -103,7 +131,7 @@ python run_longformer.py
 Suggested approach: notebooks/finetuning.ipynb \
 Alternative approach:
 ```bash
-bash run_finetune.sh
+bash scripts/run_finetune.sh
 ```
 *Key parameters*:
 ```bash
@@ -148,7 +176,7 @@ bash run_finetune.sh
 Suggested approach: notebooks/evaluate.ipynb \
 Alternative approach: 
 ```bash
-bash run_evaluate.sh
+bash scripts/run_evaluate.sh
 ```
 *Key parameters*:
 ```bash
@@ -157,7 +185,7 @@ bash run_evaluate.sh
 ```
 * **CLEF  2003**
 ```bash
-bash run_clef_dual_encoder.sh
+bash scripts/run_clef_dual_encoder.sh
 ```
 *Key parameters*:
 ```bash
@@ -165,4 +193,17 @@ bash run_clef_dual_encoder.sh
 --pretrained_dir                        # Path of model to be evaluated
 --pretrained_epoch                      # Checkpoint of model to be evaluated
 --dual_encoder                          # To be used for a bi-encoder 
+```
+
+## Citation
+If you use this repository, please consider citing our paper:
+```bibtex
+@misc{galoğlu2023generalpurpose,
+      title={A General-Purpose Multilingual Document Encoder}, 
+      author={Onur Galoğlu and Robert Litschko and Goran Glavaš},
+      year={2023},
+      eprint={2305.07016},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
+}
 ```
