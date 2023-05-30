@@ -35,8 +35,7 @@ to its massively multilingual lower transformer,
 HMDE successfully generalizes to languages
 unseen in document-level pretraining. We publicly release our code and models
 ## Model Overview
-![hmde.png](https://user-images.githubusercontent.com/33498883/241818654-ee3289db-17d9-4476-a4d7-928f001870ed.png)
-    
+ <img src="https://user-images.githubusercontent.com/33498883/241818654-ee3289db-17d9-4476-a4d7-928f001870ed.png" alt= "" width="400" height="600">
 
 ## Installation Instructions
 * **Project setup**:
