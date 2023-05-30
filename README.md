@@ -15,13 +15,10 @@ embeddings, much less effort has been devoted
 to training general-purpose (massively) multi-
 lingual document encoder that can be used for
 both supervised and unsupervised document-
-level tasks. In this work, we pretrain a mas-
-sively multilingual document encoder as a hier-
-archical transformer model (HMDE) in which
+level tasks. In this work, we pretrain a massively multilingual document encoder as a hierarchical transformer model (HMDE) in which
 a shallow document transformer contextualizes
 sentence representations produced by a state-
-of-the-art pretrained multilingual sentence en-
-coder. We leverage Wikipedia as a readily
+of-the-art pretrained multilingual sentence encoder. We leverage Wikipedia as a readily
 available source of comparable documents for
 creating training data, and train HMDE by
 means of a cross-lingual contrastive objective,
@@ -32,13 +29,11 @@ arguably most common and prominent cross-
 lingual document-level tasks: (1) cross-lingual
 transfer for topical document classification and
 (2) cross-lingual document retrieval. HMDE
-is significantly more effective than (i) aggre-
-gations of segment-based representations and
+is significantly more effective than (i) aggregations of segment-based representations and
 (ii) multilingual Longformer. Crucially, owing
 to its massively multilingual lower transformer,
 HMDE successfully generalizes to languages
-unseen in document-level pretraining. We pub-
-licly release our code and models
+unseen in document-level pretraining. We publicly release our code and models
 ## Model Overview
 ![hmde.png](https://user-images.githubusercontent.com/33498883/241818654-ee3289db-17d9-4476-a4d7-928f001870ed.png)
     
